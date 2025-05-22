@@ -1,0 +1,18 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+spec:
+  project: core-services
+  destination:
+    name: "in-cluster"
+    namespace: kube-system
+  source:
+    repoURL: https://kubernetes-sigs.github.io/metrics-server/
+    targetRevision: v0.7.2
+    chart: metrics-server
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
