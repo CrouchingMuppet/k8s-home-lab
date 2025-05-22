@@ -10,7 +10,7 @@ spec:
     namespace: argocd
   sources:
     - repoURL: https://github.com/CrouchingMuppet/k8s-home-lab.git
-      path: core-services/
+      path: argocd/core-services/
       targetRevision: HEAD
   syncPolicy:
     automated:
@@ -28,7 +28,7 @@ spec:
     namespace: argocd
   source:
     repoURL: https://github.com/CrouchingMuppet/k8s-home-lab.git
-    path: apps/
+    path: argocd/apps/
     targetRevision: HEAD
   syncPolicy:
     automated:

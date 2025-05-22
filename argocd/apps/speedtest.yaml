@@ -4,7 +4,7 @@ kind: Application
 metadata:
   name: speedtest
 spec:
-  project: default
+  project: apps
   destination:
     name: "in-cluster"
     namespace: speedtest-tracker

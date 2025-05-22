@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+data:
+  url: https://argocd.mist-chicken.ts.net
+  kustomize.enabled: "true"
+  helm.enabled: "true"
+  kustomize.buildOptions: --enable-helm
+  redis.enabled: "true"
