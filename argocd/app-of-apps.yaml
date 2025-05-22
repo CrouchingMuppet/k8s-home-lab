@@ -1,0 +1,36 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: core-services
+spec:
+  project: core-services
+  destination:
+    name: "in-cluster"
+    namespace: argocd
+  sources:
+    - repoURL: https://github.com/CrouchingMuppet/k8s-home-lab.git
+      path: core-services/
+      targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apps
+spec:
+  project: default
+  destination:
+    name: "in-cluster"
+    namespace: argocd
+  source:
+    repoURL: https://github.com/CrouchingMuppet/k8s-home-lab.git
+    path: apps/
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

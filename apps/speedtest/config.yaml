@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: speedtest-tracker-config
+data:
+  PUID: "1000"
+  PGID: "1000"
+  DISPLAY_TIMEZONE: Australia/Brisbane
+  DB_CONNECTION: sqlite
+  SPEEDTEST_SCHEDULE: "5 */1 * * *"
+  SPEEDTEST_SERVERS: "15134,18248,1594,54994"
+  PUBLIC_DASHBOARD: "true"

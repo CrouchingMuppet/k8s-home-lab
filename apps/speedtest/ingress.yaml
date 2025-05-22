@@ -1,0 +1,17 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: speedtest-tracker-tailscale
+  finalizers:
+    - tailscale.com/finalizer
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: speedtest-tracker
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - speedtest
