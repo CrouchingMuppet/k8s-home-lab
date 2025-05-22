@@ -12,6 +12,10 @@ spec:
     repoURL: https://charts.longhorn.io
     targetRevision: 1.8.1
     chart: longhorn
+    helm:
+      parameters:
+        - name: preUpgradeChecker.jobEnabled
+          value: 'false'
   syncPolicy:
     automated:
       prune: true
