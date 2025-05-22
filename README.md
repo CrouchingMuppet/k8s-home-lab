@@ -49,6 +49,9 @@ Add firewall rules if needed, e.g.
 
 ```sh
 firewall-cmd --permanent --zone=trusted --add-source=192.168.1.99 && \
+firewall-cmd --permanent --zone=trusted --add-source=192.168.1.90 && \
+firewall-cmd --permanent --zone=trusted --add-source=192.168.1.91 && \
+firewall-cmd --permanent --zone=trusted --add-source=192.168.1.92 && \
 firewall-cmd --permanent --zone=trusted --add-source=10.0.0.0/16 && \
 firewall-cmd --permanent --zone=trusted --add-source=10.96.0.0/12 && \
 firewall-cmd --reload
@@ -150,4 +153,4 @@ helm upgrade \
 
 ### Bootstrapping with ArgoCD for bootstrapping and app deployment
 
-From `bootstrap
+From `bootstrap` folder, run `install.sh` and get ready to sit back and drink 🍻
