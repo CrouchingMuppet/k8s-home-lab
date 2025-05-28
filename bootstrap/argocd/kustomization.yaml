@@ -8,6 +8,7 @@ resources:
   - https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
   - projects.yaml
   - applications.yaml
+  - max-map-count-daemonset.yaml
 
 patches:
   - path: patches/argocd-cm.yaml

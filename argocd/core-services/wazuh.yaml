@@ -1,0 +1,32 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: wazuh
+spec:
+  project: core-services
+  destination:
+    name: "in-cluster"
+    namespace: wazuh
+  source:
+    repoURL: https://morgoved.github.io/wazuh-helm/
+    targetRevision: 0.1.2
+    chart: wazuh
+    helm:
+      parameters:
+        - name: indexer.storageSize
+          value: 2Gi
+        - name: wazuh.master.service.type
+          value: NodePort
+        - name: wazuh.master.storageSize
+          value: 2Gi
+        - name: wazuh.worker.service.type
+          value: NodePort
+        - name: wazuh.worker.storageSize
+          value: 2Gi
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
