@@ -1,0 +1,104 @@
+---
+apiVersion: apps.gitlab.com/v1beta1
+kind: GitLab
+metadata:
+  name: gitlab
+spec:
+  chart:
+    version: "9.0.1"
+    values:
+      global:
+        hosts:
+          domain: fluster.duckdns.org
+          https: true
+          gitlab:
+            name: gitlab.fluster.duckdns.org
+          kas:
+            name: gitlab-kas.gitlab
+          ssh: gitlab-ssh.mist-chicken.ts.net
+
+        appConfig:
+          terraformState:
+            enabled: true
+            bucket: gitlab-terraform-state
+
+        ingress:
+          enabled: false
+          configureCertmanager: false
+
+        shell:
+          port: 2222
+
+        ### PostgreSQL ##############################################################
+        # psql:
+        #   host: 192.168.1.100
+        #   port: 5432
+        #   database: gitlab
+        #   username: gitlab
+        #   password:
+        #     useSecret: true
+        #     secret: gitlab-postgres-secret
+        #     key: password
+
+        ### Redis ###################################################################
+        # redis:
+        #   auth:
+        #     enabled: false
+        #   host: redis.core-services
+
+        ### SMTP ####################################################################
+        smtp:
+          enabled: true
+          address: smtp.gmail.com
+          authentication: login
+          starttls_auto: true
+          port: 587
+          user_name:
+            secret: gitlab-smtp-secrets
+            key: USERNAME
+          password:
+            secret: gitlab-smtp-secrets
+            key: PASSWORD
+
+      ### Other config #############################################################
+      gitlab:
+        gitaly:
+          persistence:
+            storageClass: longhorn
+            size: 2G
+        # gitlab-shell:
+        #   service:
+        #     internalPort: 22
+
+      minio:
+        ingress:
+          enabled: false
+        persistence:
+          storageClass: longhorn
+          size: 15Gi
+
+      redis:
+        install: true
+
+      postgresql:
+        install: true
+        storageClass: longhorn
+        size: 5Gi
+
+      certmanager:
+        install: false
+
+      gitlab-runner:
+        install: false
+
+      prometheus:
+        install: false
+
+      nginx-ingress:
+        enabled: false
+
+      registry:
+        enabled: false
+
+      certmanager-issuer:
+        email: harbour-hurray-2l@icloud.com

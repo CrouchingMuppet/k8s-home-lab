@@ -1,0 +1,14 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gitlab-system
+
+resources:
+  - https://gitlab.com/api/v4/projects/18899486/packages/generic/gitlab-operator/2.0.1/gitlab-operator-kubernetes-2.0.1.yaml
+  - secrets.yaml
+  - gitlab.yaml
+  - ingress.yaml
+
+# patches:
+#   - path: patches/tailscale-sidecar.yaml

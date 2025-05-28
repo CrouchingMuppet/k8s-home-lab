@@ -1,0 +1,48 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: gitlab-issuer
+spec:
+  acme:
+    email: harbour-hurray-2l@icloud.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: gitlab-tls-issuer-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gitlab
+spec:
+  secretName: gitlab-tls
+  dnsNames:
+    - "gitlab.fluster.duckdns.org"
+  issuerRef:
+    name: gitlab-issuer
+    kind: Issuer
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitlab
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  rules:
+    - host: gitlab.fluster.duckdns.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitlab-webservice-default
+                port:
+                  name: http-workhorse
+  tls:
+    - secretName: gitlab-tls

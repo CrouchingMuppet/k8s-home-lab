@@ -1,0 +1,27 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab-gitlab-shell
+  namespace: gitlab-system
+  labels:
+    app: gitlab-shell
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: tailscale-sidecar
+          image: ghcr.io/tailscale/tailscale
+          env:
+            - name: KUBERNETES_SERVICE_HOST
+              value: ""
+            - name: TS_HOSTNAME
+              value: gitlab-ssh
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-tailscale-auth
+                  key: TS_AUTHKEY
+          securityContext:
+            privileged: true
