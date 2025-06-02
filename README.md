@@ -9,7 +9,37 @@ The following is assumed:
 
 ## Install packages on all nodes
 
-```zsh
+### Debian
+
+```sh
+KUBERNETES_VERSION=v1.33
+CRIO_VERSION=v1.33
+
+apt install -y apt-transport-https ca-certificates curl gnupg
+
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+chmod 644 /etc/apt/sources.list.d/kubernetes.list
+curl -fsSL https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/cri-o-apt-keyring.gpg
+echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/cri-o.list
+
+swapoff -a
+echo br_netfilter | tee /etc/modules-load.d/br_netfilter.conf
+modprobe br_netfilter
+echo net.ipv4.ip_forward = 1 | tee /etc/sysctl.d/99-ip-forward.conf
+sysctl -w net.ipv4.ip_forward=1
+echo vm.nr_hugepages = 1024 | tee /etc/sysctl.d/99-hugepages.conf
+sysctl -w vm.nr_hugepages=1024
+
+apt update && apt install -y cri-o kubelet kubeadm
+
+systemctl enable --now crio.service
+systemctl enable --now kubelet.service
+```
+
+### Alma Linux
+```sh
 KUBERNETES_VERSION=v1.33
 CRIO_VERSION=v1.33
 
@@ -36,10 +66,12 @@ echo br_netfilter | tee /etc/modules-load.d/br_netfilter.conf
 modprobe br_netfilter
 echo net.ipv4.ip_forward = 1 | tee /etc/sysctl.d/99-ip-forward.conf
 sysctl -w net.ipv4.ip_forward=1
+echo vm.nr_hugepages = 1024 | tee /etc/sysctl.d/99-hugepages.conf
+sysctl -w vm.nr_hugepages = 1024
 
 dnf install -y cri-o kubelet kubeadm
 
-systemctl enable --now crio.service && \
+systemctl enable --now crio.service
 systemctl enable --now kubelet.service
 ```
 
@@ -61,7 +93,7 @@ If SELINUX is in enforcing mode, it will probably be easier to manage exceptions
 
 On the first control-plane node:
 
-```zsh
+```sh
 kubeadm init \
   --apiserver-advertise-address=192.168.1.90 \
   --control-plane-endpoint=192.168.1.99
@@ -73,7 +105,7 @@ Use kube config from `/etc/kubernbetes/admin.conf` to connect management machine
 
 From the management machine:
 
-```zsh
+```sh
 CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
 CLI_ARCH=amd64
 if [ "$(uname -m)" = "arm64" ]; then CLI_ARCH=arm64; fi
@@ -87,7 +119,7 @@ cilium install
 
 Remove any taints from the first control plane:
 
-```zsh
+```sh
 kubectl taint nodes <node-name> node-role.kubernetes.io/control-plane:NoSchedule-
 ```
 
@@ -96,7 +128,7 @@ kubectl taint nodes <node-name> node-role.kubernetes.io/control-plane:NoSchedule
 From the first node compress the certs and copy over to other nodes.
 Possibly another way to do this with `--upload-certs` param in `kubeadm`.
 
-```zsh
+```sh
 dnf install tar -y
 cd /etc/kubernetes/pki
 tar -czf kubernetes-pki.tar.gz ca.* sa.* front-proxy-ca.* etcd/ca.*
@@ -107,7 +139,7 @@ rm -f kubernetes-pki.tar.gz
 
 From each of the other nodes extract the certs
 
-```zsh
+```sh
 dnf install tar -y
 mkdir -p /etc/kubernetes/pki
 tar -xzf /tmp/kubernetes-pki.tar.gz -C /etc/kubernetes/pki && \
@@ -117,7 +149,7 @@ rm -f /tmp/kubernetes-pki.tar.gz
 Join the other nodes to the cluster using output obtained from `kubeadm init`
 on the first node or use `kubeadm token create --print-join-command`.
 
-```zsh
+```sh
 kubeadm join 192.168.1.99:6443 \
   --token <insert-token-here> \
 	--discovery-token-ca-cert-hash <insert-cert-hash-here> \
@@ -135,7 +167,7 @@ If we're all 🙂 then clean up the test pods `kubectl delete namespace cilium-t
 Use Tailscale admin website to generate oauth credentials and then deploy the
 Tailscale operator:
 
-```zsh
+```sh
 helm repo add tailscale https://pkgs.tailscale.com/helmcharts
 
 help repo update
@@ -149,6 +181,16 @@ helm upgrade \
   --set-string oauth.clientId="<OAauth client ID>" \
   --set-string oauth.clientSecret="<OAuth client secret>" \
   --wait
+```
+
+### Longhorn Prerequisites
+
+Additionally packages are required for the Longhorn storage driver
+
+```sh
+apt install -y open-iscsi nfs-common
+
+dnf install -y iscsi-initiator-utils nfs-utils
 ```
 
 ### Bootstrapping with ArgoCD for bootstrapping and app deployment
