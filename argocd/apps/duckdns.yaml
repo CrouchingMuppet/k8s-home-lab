@@ -1,0 +1,20 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: duckdns
+spec:
+  project: apps
+  destination:
+    name: "in-cluster"
+    namespace: duckdns
+  source:
+    repoURL: https://github.com/CrouchingMuppet/k8s-home-lab.git
+    path: apps/duckdns
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

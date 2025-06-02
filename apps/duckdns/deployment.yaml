@@ -1,0 +1,34 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duckdns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: duckdns
+  template:
+    metadata:
+      labels:
+        app: duckdns
+    spec:
+      containers:
+        - name: duckdns
+          image: lscr.io/linuxserver/duckdns:latest
+          envFrom:
+            - configMapRef:
+                name: duckdns-config
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: duckdns-secrets
+                  key: TOKEN
+          livenessProbe:
+            exec:
+              command:
+                - pgrep busybox || exit 1
+              initialDelaySeconds: 10s
+              periodSeconds: 30s
+              failureThreshold: 3
