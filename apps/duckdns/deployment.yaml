@@ -28,7 +28,8 @@ spec:
           livenessProbe:
             exec:
               command:
-                - pgrep busybox || exit 1
+                - pgrep
+                - busybox || exit 1
               initialDelaySeconds: 10s
               periodSeconds: 30s
               failureThreshold: 3
