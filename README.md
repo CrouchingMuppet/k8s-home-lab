@@ -5,7 +5,7 @@ This is a casual guide for installing a 3-node HA kubernetes cluster.
 The following is assumed:
 
 - `haproxy` configured and running at 192.168.1.99 as load balancer
-- 3 other Alma Linux based machines running on the same consecutive IPs from 192.168.1.90, I've named them `lucky`, `dusty` and `ned`.
+- 3x Alma Linux or Debian machines running on consecutive IPs from 192.168.1.90, I've named them `lucky`, `dusty` and `ned`.
 
 ## Install packages on all nodes
 
@@ -80,12 +80,16 @@ systemctl enable --now kubelet.service
 Add firewall rules if needed, e.g.
 
 ```sh
-firewall-cmd --permanent --zone=trusted --add-source=192.168.1.99 && \
-firewall-cmd --permanent --zone=trusted --add-source=192.168.1.90 && \
-firewall-cmd --permanent --zone=trusted --add-source=192.168.1.91 && \
-firewall-cmd --permanent --zone=trusted --add-source=192.168.1.92 && \
-firewall-cmd --permanent --zone=trusted --add-source=10.0.0.0/16 && \
-firewall-cmd --permanent --zone=trusted --add-source=10.96.0.0/12 && \
+IPS=(
+  192.168.1.0/24
+  10.0.0.0/16
+  10.96.0.0/16
+)
+
+for ip in "${IPS[@]}"; do
+  firewall-cmd --zone=trusted --add-source="$ip" --permanent
+done
+
 firewall-cmd --reload
 ```
 
