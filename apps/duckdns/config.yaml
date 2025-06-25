@@ -8,5 +8,5 @@ data:
   PGID: "99"
   TZ: Australia/Brisbane
   UMASK: "22"
-  SUBDOMAINS: fluster,parfitt,dont-give-a,wot-the,crouchingmuppet
-  UPDATE_IP: ipv6
+  SUBDOMAINS: fluster
+  UPDATE_IP: both
