@@ -9,4 +9,4 @@ data:
   TZ: Australia/Brisbane
   UMASK: "22"
   SUBDOMAINS: fluster
-  UPDATE_IP: both
+  UPDATE_IP: ipv6
