@@ -67,7 +67,7 @@ modprobe br_netfilter
 echo net.ipv4.ip_forward = 1 | tee /etc/sysctl.d/99-ip-forward.conf
 sysctl -w net.ipv4.ip_forward=1
 echo vm.nr_hugepages = 1024 | tee /etc/sysctl.d/99-hugepages.conf
-sysctl -w vm.nr_hugepages = 1024
+sysctl -w vm.nr_hugepages=1024
 
 dnf install -y cri-o kubelet kubeadm
 

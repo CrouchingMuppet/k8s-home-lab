@@ -11,9 +11,9 @@ controlPlane:
   replicas: 3
   platform: {}
 platform:
-  none: {} # OKD requires this field to signal no cloud provider
-pullSecret: '{"auths": ...}' # https://console.redhat.com/openshift/install/pull-secret
-sshKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHoO/4gD+BonVkdLKmArZPoISGar0yIWHX8HABbfIpgC miles@Miless-MBP.local"
+  none: {}
+pullSecret: {{ okd_pull_secret }} # https://console.redhat.com/openshift/install/pull-secret
+sshKey: {{ ssh_key }}
 networking:
   networkType: OVNKubernetes
   clusterNetwork:

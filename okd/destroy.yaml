@@ -1,0 +1,44 @@
+---
+## Proxmox servers ############################################################
+
+- name: Destroy haproxy load balancers (PVE)
+  hosts: pve
+  gather_facts: false
+  vars_files:
+    - defaults.yaml
+  vars:
+    pve_id: "{{ pve_use_ids_from + 1 }}"
+  tasks:
+    - name: Check container status
+      ansible.builtin.command: pct status {{ pve_id }}
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Stop haproxy container
+      ansible.builtin.command: pct stop {{ pve_id }}
+      when: '"status: running" in container_status.stdout'
+      changed_when: false
+
+    - name: Destroy haproxy container
+      ansible.builtin.command: pct destroy {{ pve_id }}
+      when: '"status" in container_status.stdout'
+      changed_when: false
+
+## Unraid servers #############################################################
+
+- name: Destroy haproxy load balancers (Unraid)
+  hosts: unraid
+  gather_facts: false
+  vars_files:
+    - defaults.yaml
+  tasks:
+    - name: Destroy haproxy container
+      ansible.builtin.shell: |
+        echo "Hi!"
+      register: destroy_container_output
+      changed_when: '"Hi!" in destroy_container_output.stdout'
+
+    - name: Destroy haproxy container output
+      ansible.builtin.debug:
+        var: destroy_container_output
