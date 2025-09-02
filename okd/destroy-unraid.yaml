@@ -1,0 +1,13 @@
+---
+- name: Destroy haproxy load balancers
+  hosts: unraid
+  gather_facts: false
+  vars_files: defaults.yaml
+
+  tasks:
+    - name: Destroy haproxy container
+      community.docker.docker_compose_v2:
+        project_src: /tmp
+        files: okd.haproxy.compose.yaml
+        state: absent
+        remove_images: all

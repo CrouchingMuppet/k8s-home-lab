@@ -1,0 +1,32 @@
+- name: Deploy haproxy load balancers
+  hosts: unraid
+  gather_facts: false
+  vars_files: defaults.yaml
+
+  tasks:
+    - name: Create haproxy configuration
+      ansible.builtin.template:
+        src: haproxy.cfg.j2
+        dest: "{{ unraid_haproxy_appdata }}"
+        mode: "0644"
+      notify:
+        - Restart haproxy container
+
+    - name: Create haproxy docker compose file
+      ansible.builtin.template:
+        src: haproxy.compose.j2
+        dest: /tmp/okd.haproxy.compose.yaml
+        mode: "0644"
+
+    - name: Create haproxy container
+      community.docker.docker_compose_v2:
+        project_src: /tmp
+        files: okd.haproxy.compose.yaml
+        state: present
+
+  handlers:
+    - name: Restart haproxy container
+      community.docker.docker_compose_v2:
+        project_src: /tmp
+        files: okd.haproxy.compose.yaml
+        state: restarted

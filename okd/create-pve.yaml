@@ -1,0 +1,95 @@
+---
+- name: Deploy haproxy load balancers
+  hosts: pve
+  gather_facts: false
+  vars_files: defaults.yaml
+  vars:
+    pve_id: "{{ pve_use_ids_from + 1 }}"
+  tasks:
+    - name: Create haproxy configuration
+      ansible.builtin.template:
+        src: haproxy.cfg.j2
+        dest: /tmp/haproxy.cfg
+        mode: "0644"
+      notify:
+        - Check container status
+        - Apply haproxy configuration
+        - Show debug output
+
+    - name: Check container status
+      ansible.builtin.command: pct status {{ pve_id }}
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: container_status
+      when: debug | bool
+
+    - name: Create haproxy container
+      ansible.builtin.shell: |
+        pveam download {{ pve_template_storage }} {{ pve_container_template }}
+        pct create {{ pve_id }} {{ pve_template_storage }}:vztmpl/{{ pve_container_template }} \
+            --cores 1 --memory 256 --swap 0 --hostname {{ loadbalancer_host_name }} \
+            --net0 name=eth0,bridge=vmbr0,ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
+            --storage {{ pve_container_storage }} --onboot 1
+      when: '"status" not in container_status.stdout'
+      register: container_create
+      changed_when: '"container architecture" in container_create.stdout'
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: container_create
+      when: debug | bool
+
+    - name: Check container status
+      ansible.builtin.command: pct status {{ pve_id }}
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: container_status
+      when: debug | bool
+
+    - name: Start haproxy container
+      ansible.builtin.shell: |
+        pct start {{ pve_id }}
+        pct exec {{ pve_id }} -- sh -c 'apk upgrade && apk add haproxy'
+        pct push {{ pve_id }} /tmp/haproxy.cfg /etc/haproxy/haproxy.cfg
+        pct exec {{ pve_id }} -- sh -c 'rc-update add haproxy && rc-service haproxy start'
+      when: '"status: stopped" in container_status.stdout'
+      register: container_start
+      changed_when: '"Starting haproxy" in container_start.stdout'
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: container_start
+      when: debug | bool
+
+  handlers:
+    - name: Check container status
+      ansible.builtin.command: pct status {{ pve_id }}
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: container_status
+      when: debug | bool
+
+    - name: Apply haproxy configuration
+      ansible.builtin.shell: |
+        pct push {{ pve_id }} /tmp/haproxy.cfg /etc/haproxy/haproxy.cfg
+        pct exec {{ pve_id }} -- sh -c 'rc-service haproxy restart'
+      register: apply_config
+      when: '"status: running" in container_status.stdout'
+      changed_when: '"Starting haproxy" in apply_config.stdout'
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: apply_config
+      when: debug | bool

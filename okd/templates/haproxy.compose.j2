@@ -1,0 +1,24 @@
+services:
+  haproxy:
+    image: haproxy
+    hostname: {{ loadbalancer_host_name }}
+    container_name: {{ loadbalancer_host_name }}
+    networks:
+      {{ unraid_docker_network }}:
+        ipv4_address: {{ loadbalancer_ip }}
+    volumes:
+      - {{ unraid_haproxy_appdata }}:/usr/local/etc/haproxy:ro
+    labels:
+      - net.unraid.docker.webui=http://{{ loadbalancer_ip }}:8080
+      - net.unraid.docker.icon=https://djeqr6to3dedg.cloudfront.net/repo-logos/library/haproxy/live/logo-1720462205614.png
+    healthcheck:
+      test: pidof haproxy || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+networks:
+  {{ unraid_docker_network }}:
+    external: true

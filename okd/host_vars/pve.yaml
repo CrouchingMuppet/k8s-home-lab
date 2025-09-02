@@ -3,4 +3,4 @@ pve_template_storage: templates
 pve_container_template: alpine-3.22-default_20250617_amd64.tar.xz
 pve_container_storage: unraid-cache
 pve_use_ids_from: 30000
-pve_haproxy_mac_address: 52:54:00:00:00:99
+pve_loadbalancer_cidr: /24

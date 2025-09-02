@@ -1,7 +1,12 @@
 ---
+debug: true
+
+loadbalancer_host_name: okd-haproxy
+loadbalancer_ip: 192.168.1.99
+
 bootstrap_ip: 192.168.1.98
-cp1_ip: 192.168.1.93
-cp2_ip: 192.168.1.94
-cp3_ip: 192.168.1.95
+controlplane1_ip: 192.168.1.93
+controlplane2_ip: 192.168.1.94
+controlplane3_ip: 192.168.1.95
 
 ssh_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHoO/4gD+BonVkdLKmArZPoISGar0yIWHX8HABbfIpgC miles@Miless-MBP.local

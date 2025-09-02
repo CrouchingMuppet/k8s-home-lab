@@ -1,10 +1,4 @@
 ---
-pve:
-  hosts:
-    pve:
-      ansible_host: pve.localdomain
-      ansible_user: root
-
 unraid:
   hosts:
     zero:
