@@ -22,7 +22,13 @@
       ansible.builtin.file:
         path: "{{ persistence_folder }}"
         state: absent
-      when: cleanup_persistence | bool
+      when: persistence_cleanup | bool
+
+    - name: Remove openshift installer
+      ansible.builtin.file:
+        path: "/usr/local/bin/openshift-install"
+        state: absent
+      when: persistence_cleanup | bool
 
 ###
 
