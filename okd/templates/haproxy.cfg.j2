@@ -1,68 +1,61 @@
 global
-        maxconn 10000
-        daemon
-        log stdout format raw local0 debug
+    maxconn 10000
+    daemon
+    log stdout format raw local0 debug
 
-        ca-base /etc/ssl/certs
-        crt-base /etc/ssl/private
-        
-        ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
-        ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
-        ssl-default-bind-options ssl-min-ver TLSv1.2 no-tls-tickets
+    ca-base /etc/ssl/certs
+    crt-base /etc/ssl/private
+    
+    ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+    ssl-default-bind-options ssl-min-ver TLSv1.2 no-tls-tickets
 
 defaults
-        timeout connect 3000
-        timeout client  30000
-        timeout server  30000
+    timeout connect 3000
+    timeout client  30000
+    timeout server  30000
 
-frontend k8s_api_fe
-    bind :6443
-    default_backend k8s_api_be
+{% for port in loadbalancer_api_ports %}
+
+frontend api_fe_{{ port }}
+    bind :{{ port }}
+    default_backend api_be_{{ port }}
     mode tcp
 
-backend k8s_api_be
+backend api_be_{{ port }}
     balance roundrobin
     mode tcp
-    server      bootstrap {{ bootstrap_ip }}:6443 check
-    server      cp1 {{ controlplane1_ip }}:6443 check
-    server      cp2 {{ controlplane2_ip }}:6443 check
-    server      cp3 {{ controlplane3_ip }}:6443 check
+    server bootstrap {{ bootstrap_ip }}:{{ port }} check
+{% for ip in controlplane_ips %}
+    server {{ ip }} {{ ip }}:{{ port }} check
+{% endfor %}
 
-frontend machine_config_server_fe
-    bind :22623
-    default_backend machine_config_server_be
+{% endfor %}
+
+{% for port in loadbalancer_ingress_ports %}
+
+frontend ingress_traffic_fe_{{ port }}
+    bind :{{ port }}
+    default_backend ingress_traffic_be_{{ port }}
     mode tcp
 
-backend machine_config_server_be
+backend ingress_traffic_be_{{ port }}
     balance roundrobin
     mode tcp
-    server      bootstrap {{ bootstrap_ip }}:22623 check
-    server      cp1 {{ controlplane1_ip }}:22623 check
-    server      cp2 {{ controlplane2_ip }}:22623 check
-    server      cp3 {{ controlplane3_ip }}:22623 check
-frontend http_ingress_traffic_fe
-    bind :80
-    default_backend http_ingress_traffic_be
-    mode tcp
+{% if (worker_ips | count) > 0 %}
 
-backend http_ingress_traffic_be
-    balance roundrobin
-    mode tcp
-    server      cp1 {{ controlplane1_ip }}:80 check
-    server      cp2 {{ controlplane2_ip }}:80 check
-    server      cp3 {{ controlplane3_ip }}:80 check
+{% for ip in worker_ips %}
+    server {{ ip }} {{ ip }}:{{ port }} check
+{% endfor %}
 
-frontend https_ingress_traffic_fe
-    bind *:443
-    default_backend https_ingress_traffic_be
-    mode tcp
+{% else %}
 
-backend https_ingress_traffic_be
-    balance roundrobin
-    mode tcp
-    server      cp1 {{ controlplane1_ip }}:443 check
-    server      cp2 {{ controlplane2_ip }}:443 check
-    server      cp3 {{ controlplane3_ip }}:443 check
+{% for ip in controlplane_ips %}
+    server {{ ip }} {{ ip }}:{{ port }} check
+{% endfor %}
+{% endif %}
+
+{% endfor %}
 
 frontend stats
     mode http

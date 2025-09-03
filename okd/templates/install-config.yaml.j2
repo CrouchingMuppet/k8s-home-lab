@@ -4,16 +4,16 @@ metadata:
   name: okd
 compute:
   - name: worker
-    replicas: {{ worker_replicas }}
+    replicas: {{ worker_ips | count }}
     platform: {}
 controlPlane:
   name: master
-  replicas: {{ controlplane_replicas }}
+  replicas: {{ controlplane_ips | count }}
   platform: {}
 platform:
   none: {}
-pullSecret: {{ okd_pull_secret }} # https://console.redhat.com/openshift/install/pull-secret
-sshKey: {{ ssh_key }}
+pullSecret: '{{ lookup('file', 'pull-secret.txt') }}'
+sshKey: '{{ ssh_key }}'
 networking:
   networkType: OVNKubernetes
   clusterNetwork:

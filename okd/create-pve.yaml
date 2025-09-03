@@ -5,11 +5,21 @@
   vars_files: defaults.yaml
 
   tasks:
+    - name: Install prerequisite packages
+      ansible.builtin.apt:
+        name: jq
+
     - name: Create persistence folder
       ansible.builtin.file:
-        path: "{{ persistence_folder }}"
+        path: "{{ persistence_folder }}/ignition"
         state: directory
         mode: "0755"
+
+    - name: Create OKD installer config
+      ansible.builtin.template:
+        src: install-config.yaml.j2
+        dest: "{{ persistence_folder }}/ignition/install-config.yaml"
+        mode: "0644"
 
     - name: Create haproxy configuration
       ansible.builtin.template:
@@ -17,7 +27,6 @@
         dest: "{{ persistence_folder }}/haproxy.cfg"
         mode: "0644"
       notify:
-        - Check container status
         - Apply haproxy configuration
         - Debug Apply haproxy configuration
 
@@ -33,48 +42,31 @@
       when: debug | bool
 
     - name: Create haproxy container
-      ansible.builtin.shell: |
-        pveam download {{ pve_template_storage }} {{ pve_container_template }}
-        pct create {{ pve_loadbalancer_id }} {{ pve_template_storage }}:vztmpl/{{ pve_container_template }} \
-            --cores 1 --memory 256 --swap 0 --hostname {{ loadbalancer_host_name }} \
-            --net0 name=eth0,bridge=vmbr0,gw={{ pve_loadbalancer_gateway }},ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
-            --storage {{ pve_container_storage }} --onboot 1
+      ansible.builtin.shell:
+        cmd: |
+          pveam download {{ pve_template_storage }} {{ pve_container_template }}
+          pct create {{ pve_loadbalancer_id }} {{ pve_template_storage }}:vztmpl/{{ pve_container_template }} \
+              --cores 1 --memory 256 --swap 0 --hostname {{ loadbalancer_host_name }} \
+              --net0 name=eth0,bridge=vmbr0,gw={{ pve_loadbalancer_gateway }},ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
+              --storage {{ pve_container_storage }} --onboot 1
+          pct start {{ pve_loadbalancer_id }}
+          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk upgrade'
+          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk add haproxy'
+          pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
+          pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add haproxy && rc-service haproxy start'
+          {% if loadbalancer_enable_ssh %}
+          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk add openssh'
+          pct exec {{ pve_loadbalancer_id }} -- sh -c 'mkdir -p /root/.ssh'
+          pct push {{ pve_loadbalancer_id }} ~/.ssh/authorized_keys /root/.ssh/authorized_keys
+          pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add sshd && rc-service sshd start'
+          {% endif %}
+        creates: /etc/pve/lxc/{{ pve_loadbalancer_id }}.config
       when: '"status" not in container_status.stdout'
       register: container_create
-      changed_when: '"container architecture" in container_create.stdout'
 
     - name: Show debug output
       ansible.builtin.debug:
         var: container_create
-      when: debug | bool
-
-    - name: Check container status
-      ansible.builtin.command: pct status {{ pve_loadbalancer_id }}
-      register: container_status
-      changed_when: false
-      failed_when: false
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: container_status
-      when: debug | bool
-
-    - name: Configure and start haproxy container
-      ansible.builtin.shell: |
-        pct start {{ pve_loadbalancer_id }}
-        pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk upgrade && apk add openssh'
-        pct exec {{ pve_loadbalancer_id }} -- sh -c 'mkdir -p /root/.ssh'
-        pct push {{ pve_loadbalancer_id }} ~/.ssh/authorized_keys /root/.ssh/authorized_keys
-        pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
-        pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add sshd && rc-service sshd start'
-        pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add haproxy && rc-service haproxy start'
-      when: '"status: stopped" in container_status.stdout'
-      register: container_start
-      changed_when: '"Starting haproxy" in container_start.stdout'
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: container_start
       when: debug | bool
 
     - name: Download OpenShift tools
@@ -87,19 +79,52 @@
         - install
       notify: Extract OpenShift tools
 
-  handlers:
-    - name: Check container status
-      ansible.builtin.command: pct status {{ pve_loadbalancer_id }}
-      register: container_status
-      changed_when: false
-      failed_when: false
+    - name: Check coreos image exists
+      ansible.builtin.stat:
+        path: "{{ persistence_folder }}/scos.qcow"
+      register: coreos_status
 
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: coreos_status
+      when: debug | bool
+
+    - name: Find coreos image url
+      ansible.builtin.shell: |
+        set -o pipefail
+        VERSION=scos-$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.release')-qemu.x86_64.qcow2
+        openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.formats."qcow2.gz".disk.location'
+      register: coreos_url
+      when: not coreos_status.stat.exists
+      changed_when: false
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: coreos_url
+      when: debug | bool
+
+    - name: Download coreos image
+      ansible.builtin.get_url:
+        url: "{{ coreos_url.stdout }}"
+        dest: "{{ persistence_folder }}/scos.qcow.gz"
+        mode: "0644"
+      notify: Extract coreos image
+
+    - name: Create ignition files
+      ansible.builtin.shell:
+        chdir: "{{ persistence_folder }}/ignition"
+        cmd: |
+          openshift-install create manifests
+          openshift-install create ignition-configs
+        creates: bootstrap.ign
+
+  handlers:
     - name: Apply haproxy configuration
       ansible.builtin.shell: |
+        pct start {{ pve_loadbalancer_id }}
         pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
         pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-service haproxy restart'
       register: apply_config
-      when: '"status: running" in container_status.stdout'
       changed_when: '"Starting haproxy" in apply_config.stdout'
 
     - name: Debug Apply haproxy configuration
@@ -115,3 +140,9 @@
       loop:
         - client
         - install
+
+    - name: Extract coreos image
+      ansible.builtin.unarchive:
+        src: "{{ persistence_folder }}/scos.gz"
+        dest: "{{ persistence_folder }}"
+        remote_src: true
