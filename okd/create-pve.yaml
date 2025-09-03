@@ -87,23 +87,18 @@
         dest: "{{ ignition_folder }}//install-config.yaml"
         mode: "0644"
 
-    - name: Download OpenShift tools
+    - name: Download OpenShift installer
       ansible.builtin.get_url:
-        url: https://github.com/openshift/okd/releases/download/{{ okd_version }}/openshift-{{ item }}-linux-{{ okd_version }}.tar.gz
-        dest: "{{ persistence_folder }}/{{ item }}.tar.gz"
+        url: https://github.com/openshift/okd/releases/download/{{ okd_version }}/openshift-install-linux-{{ okd_version }}.tar.gz
+        dest: "{{ persistence_folder }}/openshift-install.tar.gz"
         mode: "0644"
-      loop:
-        - client
-        - install
 
     - name: Extract OpenShift tools
       ansible.builtin.unarchive:
-        src: "{{ persistence_folder }}/{{ item }}.tar.gz"
+        src: "{{ persistence_folder }}/openshift-install.tar.gz"
         dest: "/usr/local/bin"
         remote_src: true
-      loop:
-        - client
-        - install
+        creates: /usr/local/bin/openshift-install
 
     - name: Find coreos image url
       ansible.builtin.shell: |
