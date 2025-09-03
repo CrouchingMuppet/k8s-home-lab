@@ -3,44 +3,91 @@
   hosts: pve
   gather_facts: false
   vars_files: defaults.yaml
-  vars:
-    pve_loadbalancer_id: "{{ pve_use_ids_from + 1 }}"
 
   tasks:
-    - name: Check container status
-      ansible.builtin.command: pct status {{ pve_loadbalancer_id }}
-      register: container_status
-      changed_when: false
-      failed_when: false
+    - name: Remove haproxy container
+      ansible.builtin.shell:
+        cmd: |
+          pct stop {{ pve_loadbalancer_id }}
+          pct destroy {{ pve_loadbalancer_id }}
+        removes: /etc/pve/lxc/{{ pve_loadbalancer_id }}.conf
+      register: remove_container
 
     - name: Show debug output
       ansible.builtin.debug:
-        var: container_start
-      when: debug | bool
-
-    - name: Stop haproxy container
-      ansible.builtin.command: pct stop {{ pve_loadbalancer_id }}
-      when: '"status: running" in container_status.stdout'
-      register: stop_container
-      changed_when: false
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: stop_container
-      when: debug | bool
-
-    - name: Destroy haproxy container
-      ansible.builtin.command: pct destroy {{ pve_loadbalancer_id }}
-      when: '"status" in container_status.stdout'
-      register: destroy_container
-      changed_when: false
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: destroy_container
+        var: remove_container
       when: debug | bool
 
     - name: Remove persistence folder
       ansible.builtin.file:
         path: "{{ persistence_folder }}"
         state: absent
+      when: cleanup_persistence | bool
+
+###
+
+- name: Destroy OpenShift machines
+  hosts: pve
+  gather_facts: false
+  vars_files: defaults.yaml
+
+  tasks:
+    - name: Destroy bootstrap machine
+      ansible.builtin.shell:
+        cmd: |
+          qm stop {{ pve_bootstrap_id }}
+          qm destroy {{ pve_bootstrap_id }}
+        removes: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+      register: destroy_vm
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: destroy_vm
+      when: debug | bool
+
+    - name: Destroy control planes
+      vars:
+        template_id: "{{ pve_controlplane_ids_start_from + index }}"
+      ansible.builtin.shell:
+        cmd: |
+          qm stop {{ template_id }}
+          qm destroy {{ template_id }}
+        removes: /etc/pve/qemu-server/{{ template_id }}.conf
+      register: destroy_vm
+      loop: "{{ controlplane_ips }}"
+      loop_control:
+        index_var: index
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: destroy_vm
+      when: debug | bool
+
+    - name: Destroy worker nodes
+      vars:
+        template_id: "{{ pve_worker_ids_start_from + index }}"
+      ansible.builtin.shell:
+        cmd: |
+          qm stop {{ template_id }}
+          qm destroy {{ template_id }}
+        removes: /etc/pve/qemu-server/{{ template_id }}.conf
+      register: destroy_vm
+      loop: "{{ worker_ips }}"
+      loop_control:
+        index_var: index
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: destroy_vm
+      when: debug | bool
+
+    - name: Destroy template machine
+      ansible.builtin.command:
+        cmd: qm destroy {{ pve_scos_template_id }}
+        removes: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
+      register: destroy_vm
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: destroy_vm
+      when: debug | bool

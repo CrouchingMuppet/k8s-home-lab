@@ -2,6 +2,7 @@
 debug: true
 
 persistence_folder: /usr/local/share/k8s-home-lab
+cleanup_persistence: false
 
 loadbalancer_host_name: okd-haproxy
 loadbalancer_ip: 192.168.1.99
@@ -12,7 +13,22 @@ loadbalancer_ingress_ports: [80, 443]
 okd_version: 4.20.0-okd-scos.ec.10
 
 bootstrap_ip: 192.168.1.98
-controlplane_ips: [192.168.1.93, 192.168.1.94, 192.168.1.95]
-worker_ips: [192.168.1.97, 192.168.1.98]
+bootstrap_mac_address: 52:54:00:00:00:98
+controlplane_ips:
+  - 192.168.1.93
+  - 192.168.1.94
+  - 192.168.1.95
+controlplane_mac_addresses:
+  - 52:54:00:00:00:93
+  - 52:54:00:00:00:94
+  - 52:54:00:00:00:95
+worker_ips:
+  []
+  # - 192.168.1.96
+  # - 192.168.1.97
+worker_mac_addresses:
+  []
+  # - 52:54:00:00:00:96
+  # - 52:54:00:00:00:97
 
 ssh_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHoO/4gD+BonVkdLKmArZPoISGar0yIWHX8HABbfIpgC miles@Miless-MBP.local

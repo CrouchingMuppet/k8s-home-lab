@@ -5,21 +5,11 @@
   vars_files: defaults.yaml
 
   tasks:
-    - name: Install prerequisite packages
-      ansible.builtin.apt:
-        name: jq
-
     - name: Create persistence folder
       ansible.builtin.file:
-        path: "{{ persistence_folder }}/ignition"
+        path: "{{ persistence_folder }}"
         state: directory
         mode: "0755"
-
-    - name: Create OKD installer config
-      ansible.builtin.template:
-        src: install-config.yaml.j2
-        dest: "{{ persistence_folder }}/ignition/install-config.yaml"
-        mode: "0644"
 
     - name: Create haproxy configuration
       ansible.builtin.template:
@@ -30,22 +20,11 @@
         - Apply haproxy configuration
         - Debug Apply haproxy configuration
 
-    - name: Check container status
-      ansible.builtin.command: pct status {{ pve_loadbalancer_id }}
-      register: container_status
-      changed_when: false
-      failed_when: false
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: container_status
-      when: debug | bool
-
     - name: Create haproxy container
       ansible.builtin.shell:
         cmd: |
-          pveam download {{ pve_template_storage }} {{ pve_container_template }}
-          pct create {{ pve_loadbalancer_id }} {{ pve_template_storage }}:vztmpl/{{ pve_container_template }} \
+          pveam download {{ pve_template_storage }} {{ pve_loadbalancer_template }}
+          pct create {{ pve_loadbalancer_id }} {{ pve_template_storage }}:vztmpl/{{ pve_loadbalancer_template }} \
               --cores 1 --memory 256 --swap 0 --hostname {{ loadbalancer_host_name }} \
               --net0 name=eth0,bridge=vmbr0,gw={{ pve_loadbalancer_gateway }},ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
               --storage {{ pve_container_storage }} --onboot 1
@@ -60,63 +39,13 @@
           pct push {{ pve_loadbalancer_id }} ~/.ssh/authorized_keys /root/.ssh/authorized_keys
           pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add sshd && rc-service sshd start'
           {% endif %}
-        creates: /etc/pve/lxc/{{ pve_loadbalancer_id }}.config
-      when: '"status" not in container_status.stdout'
+        creates: /etc/pve/lxc/{{ pve_loadbalancer_id }}.conf
       register: container_create
 
     - name: Show debug output
       ansible.builtin.debug:
         var: container_create
       when: debug | bool
-
-    - name: Download OpenShift tools
-      ansible.builtin.get_url:
-        url: https://github.com/openshift/okd/releases/download/{{ okd_version }}/openshift-{{ item }}-linux-{{ okd_version }}.tar.gz
-        dest: "{{ persistence_folder }}/{{ item }}.tar.gz"
-        mode: "0644"
-      loop:
-        - client
-        - install
-      notify: Extract OpenShift tools
-
-    - name: Check coreos image exists
-      ansible.builtin.stat:
-        path: "{{ persistence_folder }}/scos.qcow"
-      register: coreos_status
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: coreos_status
-      when: debug | bool
-
-    - name: Find coreos image url
-      ansible.builtin.shell: |
-        set -o pipefail
-        VERSION=scos-$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.release')-qemu.x86_64.qcow2
-        openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.formats."qcow2.gz".disk.location'
-      register: coreos_url
-      when: not coreos_status.stat.exists
-      changed_when: false
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: coreos_url
-      when: debug | bool
-
-    - name: Download coreos image
-      ansible.builtin.get_url:
-        url: "{{ coreos_url.stdout }}"
-        dest: "{{ persistence_folder }}/scos.qcow.gz"
-        mode: "0644"
-      notify: Extract coreos image
-
-    - name: Create ignition files
-      ansible.builtin.shell:
-        chdir: "{{ persistence_folder }}/ignition"
-        cmd: |
-          openshift-install create manifests
-          openshift-install create ignition-configs
-        creates: bootstrap.ign
 
   handlers:
     - name: Apply haproxy configuration
@@ -132,6 +61,41 @@
         var: apply_config
       when: debug | bool
 
+###
+
+- name: Prepare OpenShift environment
+  hosts: pve
+  gather_facts: false
+  vars_files: defaults.yaml
+  vars:
+    ignition_folder: "{{ persistence_folder }}/ignition"
+
+  tasks:
+    - name: Install prerequisite packages
+      ansible.builtin.apt:
+        name: jq
+
+    - name: Create persistence folder
+      ansible.builtin.file:
+        path: "{{ ignition_folder }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create OKD installer config
+      ansible.builtin.template:
+        src: install-config.yaml.j2
+        dest: "{{ ignition_folder }}//install-config.yaml"
+        mode: "0644"
+
+    - name: Download OpenShift tools
+      ansible.builtin.get_url:
+        url: https://github.com/openshift/okd/releases/download/{{ okd_version }}/openshift-{{ item }}-linux-{{ okd_version }}.tar.gz
+        dest: "{{ persistence_folder }}/{{ item }}.tar.gz"
+        mode: "0644"
+      loop:
+        - client
+        - install
+
     - name: Extract OpenShift tools
       ansible.builtin.unarchive:
         src: "{{ persistence_folder }}/{{ item }}.tar.gz"
@@ -141,8 +105,136 @@
         - client
         - install
 
+    - name: Find coreos image url
+      ansible.builtin.shell: |
+        set -o pipefail
+        VERSION=scos-$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.release')-qemu.x86_64.qcow2
+        openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.formats."qcow2.gz".disk.location'
+      register: coreos_url
+      changed_when: false
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: coreos_url
+      when: debug | bool
+
+    - name: Download coreos image
+      ansible.builtin.get_url:
+        url: "{{ coreos_url.stdout }}"
+        dest: "{{ persistence_folder }}/scos.qcow2.gz"
+        mode: "0644"
+
     - name: Extract coreos image
-      ansible.builtin.unarchive:
-        src: "{{ persistence_folder }}/scos.gz"
-        dest: "{{ persistence_folder }}"
-        remote_src: true
+      ansible.builtin.command:
+        cmd: gzip -dk {{ persistence_folder }}/scos.qcow2.gz
+        creates: "{{ persistence_folder }}/scos.qcow2"
+      register: extract_coreos
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: extract_coreos
+      when: debug | bool
+
+    - name: Create ignition files
+      ansible.builtin.shell:
+        chdir: "{{ ignition_folder }}/"
+        cmd: |
+          openshift-install create manifests
+          openshift-install create ignition-configs
+        creates: bootstrap.ign
+
+###
+
+- name: Create OpenShift machines
+  hosts: pve
+  gather_facts: false
+  vars_files: defaults.yaml
+  vars:
+    ignition_folder: "{{ persistence_folder }}/ignition"
+  tasks:
+    - name: Create template machine
+      ansible.builtin.shell:
+        chdir: "{{ persistence_folder }}"
+        cmd: |
+          qm create {{ pve_scos_template_id }} --name okd-template \
+            --net0 virtio,bridge=vmbr0 --cpu host
+          qm importdisk {{ pve_scos_template_id }} scos.qcow2 {{ pve_container_storage }}
+          qm set {{ pve_scos_template_id }} --scsihw virtio-scsi-single \
+            --scsi0 {{ pve_container_storage }}:vm-{{ pve_scos_template_id }}-disk-0
+          qm set {{ pve_scos_template_id }} --boot c --bootdisk scsi0
+          qm resize {{ pve_scos_template_id }} scsi0 {{ pve_scos_template_add_storage }}
+          qm template {{ pve_scos_template_id }}
+        creates: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
+      register: vm_create
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: vm_create
+      when: debug | bool
+
+    - name: Create bootstrap machine
+      ansible.builtin.shell:
+        cmd: |
+          qm clone {{ pve_scos_template_id }} {{ pve_bootstrap_id }} --name okd-bootstrap
+          qm set {{ pve_bootstrap_id }} --net0 virtio,bridge=vmbr0,macaddr={{ bootstrap_mac_address }}
+          qm set {{ pve_bootstrap_id }} --cores 4
+          qm set {{ pve_bootstrap_id }} --memory 16384
+          qm set {{ pve_bootstrap_id }} --agent 1
+          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/bootstrap.ign' \
+            >> /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+          qm start {{ pve_bootstrap_id }}
+        creates: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+      register: vm_create
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: vm_create
+      when: debug | bool
+
+    - name: Create control planes
+      vars:
+        template_id: "{{ pve_controlplane_ids_start_from + index }}"
+      ansible.builtin.shell:
+        cmd: |
+          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-controlplane{{ index }}
+          qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ controlplane_mac_addresses[index] }}
+          qm set {{ template_id }} --cores 4
+          qm set {{ template_id }} --memory 16384
+          qm set {{ template_id }} --agent 1
+          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/master.ign' \
+            >> /etc/pve/qemu-server/{{ template_id }}.conf
+          qm start {{ template_id }}
+        creates: /etc/pve/qemu-server/{{ template_id }}.conf
+      register: vm_create
+      loop: "{{ controlplane_ips }}"
+      loop_control:
+        index_var: index
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: vm_create
+      when: debug | bool
+
+    - name: Create worker nodes
+      vars:
+        template_id: "{{ pve_worker_ids_start_from + index }}"
+      ansible.builtin.shell:
+        cmd: |
+          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-worker{{ index }}
+          qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ worker_mac_addresses[index] }}
+          qm set {{ template_id }} --cores 2
+          qm set {{ template_id }} --memory 8192
+          qm set {{ template_id }} --agent 1
+          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/worker.ign' \
+            >> /etc/pve/qemu-server/{{ template_id }}.conf
+          qm start {{ template_id }}
+        creates: /etc/pve/qemu-server/{{ template_id }}.conf
+      register: vm_create
+      loop: "{{ worker_ips }}"
+      loop_control:
+        index_var: index
+
+    - name: Show debug output
+      ansible.builtin.debug:
+        var: vm_create
+      when: debug | bool
