@@ -3,21 +3,26 @@
   hosts: pve
   gather_facts: false
   vars_files: defaults.yaml
-  vars:
-    pve_id: "{{ pve_use_ids_from + 1 }}"
+
   tasks:
+    - name: Create persistence folder
+      ansible.builtin.file:
+        path: "{{ persistence_folder }}"
+        state: directory
+        mode: "0755"
+
     - name: Create haproxy configuration
       ansible.builtin.template:
         src: haproxy.cfg.j2
-        dest: /tmp/haproxy.cfg
+        dest: "{{ persistence_folder }}/haproxy.cfg"
         mode: "0644"
       notify:
         - Check container status
         - Apply haproxy configuration
-        - Show debug output
+        - Debug Apply haproxy configuration
 
     - name: Check container status
-      ansible.builtin.command: pct status {{ pve_id }}
+      ansible.builtin.command: pct status {{ pve_loadbalancer_id }}
       register: container_status
       changed_when: false
       failed_when: false
@@ -30,9 +35,9 @@
     - name: Create haproxy container
       ansible.builtin.shell: |
         pveam download {{ pve_template_storage }} {{ pve_container_template }}
-        pct create {{ pve_id }} {{ pve_template_storage }}:vztmpl/{{ pve_container_template }} \
+        pct create {{ pve_loadbalancer_id }} {{ pve_template_storage }}:vztmpl/{{ pve_container_template }} \
             --cores 1 --memory 256 --swap 0 --hostname {{ loadbalancer_host_name }} \
-            --net0 name=eth0,bridge=vmbr0,ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
+            --net0 name=eth0,bridge=vmbr0,gw={{ pve_loadbalancer_gateway }},ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
             --storage {{ pve_container_storage }} --onboot 1
       when: '"status" not in container_status.stdout'
       register: container_create
@@ -44,7 +49,7 @@
       when: debug | bool
 
     - name: Check container status
-      ansible.builtin.command: pct status {{ pve_id }}
+      ansible.builtin.command: pct status {{ pve_loadbalancer_id }}
       register: container_status
       changed_when: false
       failed_when: false
@@ -54,12 +59,15 @@
         var: container_status
       when: debug | bool
 
-    - name: Start haproxy container
+    - name: Configure and start haproxy container
       ansible.builtin.shell: |
-        pct start {{ pve_id }}
-        pct exec {{ pve_id }} -- sh -c 'apk upgrade && apk add haproxy'
-        pct push {{ pve_id }} /tmp/haproxy.cfg /etc/haproxy/haproxy.cfg
-        pct exec {{ pve_id }} -- sh -c 'rc-update add haproxy && rc-service haproxy start'
+        pct start {{ pve_loadbalancer_id }}
+        pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk upgrade && apk add openssh'
+        pct exec {{ pve_loadbalancer_id }} -- sh -c 'mkdir -p /root/.ssh'
+        pct push {{ pve_loadbalancer_id }} ~/.ssh/authorized_keys /root/.ssh/authorized_keys
+        pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
+        pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add sshd && rc-service sshd start'
+        pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add haproxy && rc-service haproxy start'
       when: '"status: stopped" in container_status.stdout'
       register: container_start
       changed_when: '"Starting haproxy" in container_start.stdout'
@@ -69,27 +77,41 @@
         var: container_start
       when: debug | bool
 
+    - name: Download OpenShift tools
+      ansible.builtin.get_url:
+        url: https://github.com/openshift/okd/releases/download/{{ okd_version }}/openshift-{{ item }}-linux-{{ okd_version }}.tar.gz
+        dest: "{{ persistence_folder }}/{{ item }}.tar.gz"
+        mode: "0644"
+      loop:
+        - client
+        - install
+      notify: Extract OpenShift tools
+
   handlers:
     - name: Check container status
-      ansible.builtin.command: pct status {{ pve_id }}
+      ansible.builtin.command: pct status {{ pve_loadbalancer_id }}
       register: container_status
       changed_when: false
       failed_when: false
 
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: container_status
-      when: debug | bool
-
     - name: Apply haproxy configuration
       ansible.builtin.shell: |
-        pct push {{ pve_id }} /tmp/haproxy.cfg /etc/haproxy/haproxy.cfg
-        pct exec {{ pve_id }} -- sh -c 'rc-service haproxy restart'
+        pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
+        pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-service haproxy restart'
       register: apply_config
       when: '"status: running" in container_status.stdout'
       changed_when: '"Starting haproxy" in apply_config.stdout'
 
-    - name: Show debug output
+    - name: Debug Apply haproxy configuration
       ansible.builtin.debug:
         var: apply_config
       when: debug | bool
+
+    - name: Extract OpenShift tools
+      ansible.builtin.unarchive:
+        src: "{{ persistence_folder }}/{{ item }}.tar.gz"
+        dest: "/usr/local/bin"
+        remote_src: true
+      loop:
+        - client
+        - install

@@ -2,5 +2,9 @@
 pve_template_storage: templates
 pve_container_template: alpine-3.22-default_20250617_amd64.tar.xz
 pve_container_storage: unraid-cache
-pve_use_ids_from: 30000
+pve_loadbalancer_gateway: 192.168.1.1
 pve_loadbalancer_cidr: /24
+
+pve_loadbalancer_id: 30000
+pve_bootstrap_id: 20099
+pve_controlplane_ids_start_from: 30001

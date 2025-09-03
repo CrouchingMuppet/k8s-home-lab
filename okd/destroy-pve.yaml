@@ -4,11 +4,11 @@
   gather_facts: false
   vars_files: defaults.yaml
   vars:
-    pve_id: "{{ pve_use_ids_from + 1 }}"
+    pve_loadbalancer_id: "{{ pve_use_ids_from + 1 }}"
 
   tasks:
     - name: Check container status
-      ansible.builtin.command: pct status {{ pve_id }}
+      ansible.builtin.command: pct status {{ pve_loadbalancer_id }}
       register: container_status
       changed_when: false
       failed_when: false
@@ -19,7 +19,7 @@
       when: debug | bool
 
     - name: Stop haproxy container
-      ansible.builtin.command: pct stop {{ pve_id }}
+      ansible.builtin.command: pct stop {{ pve_loadbalancer_id }}
       when: '"status: running" in container_status.stdout'
       register: stop_container
       changed_when: false
@@ -30,7 +30,7 @@
       when: debug | bool
 
     - name: Destroy haproxy container
-      ansible.builtin.command: pct destroy {{ pve_id }}
+      ansible.builtin.command: pct destroy {{ pve_loadbalancer_id }}
       when: '"status" in container_status.stdout'
       register: destroy_container
       changed_when: false
@@ -39,3 +39,8 @@
       ansible.builtin.debug:
         var: destroy_container
       when: debug | bool
+
+    - name: Remove persistence folder
+      ansible.builtin.file:
+        path: "{{ persistence_folder }}"
+        state: absent

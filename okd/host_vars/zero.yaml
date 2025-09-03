@@ -1,3 +1,4 @@
 ---
 unraid_docker_network: br0
 unraid_haproxy_appdata: /mnt/cache/appdata/haproxy
+unraid_haproxy_compose_project: "{{ persistence_folder }}/docker/haproxy"

@@ -4,11 +4,11 @@ metadata:
   name: okd
 compute:
   - name: worker
-    replicas: 0
+    replicas: {{ worker_replicas }}
     platform: {}
 controlPlane:
   name: master
-  replicas: 3
+  replicas: {{ controlplane_replicas }}
   platform: {}
 platform:
   none: {}

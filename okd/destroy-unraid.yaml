@@ -7,7 +7,16 @@
   tasks:
     - name: Destroy haproxy container
       community.docker.docker_compose_v2:
-        project_src: /tmp
-        files: okd.haproxy.compose.yaml
+        project_src: "{{ unraid_haproxy_compose_project }}"
         state: absent
         remove_images: all
+
+    - name: Remove persistence folder
+      ansible.builtin.file:
+        path: "{{ persistence_folder }}"
+        state: absent
+
+    - name: Remove appdata folder
+      ansible.builtin.file:
+        path: "{{ unraid_haproxy_appdata }}"
+        state: absent
