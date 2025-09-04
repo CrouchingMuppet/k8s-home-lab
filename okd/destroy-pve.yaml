@@ -16,7 +16,7 @@
     - name: Show debug output
       ansible.builtin.debug:
         var: remove_container
-      when: debug | bool
+        verbosity: 2
 
     - name: Remove persistence folder
       ansible.builtin.file:
@@ -46,11 +46,6 @@
         removes: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
       register: destroy_vm
 
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: destroy_vm
-      when: debug | bool
-
     - name: Destroy control planes
       vars:
         template_id: "{{ pve_controlplane_ids_start_from + index }}"
@@ -63,11 +58,6 @@
       loop: "{{ controlplane_ips }}"
       loop_control:
         index_var: index
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: destroy_vm
-      when: debug | bool
 
     - name: Destroy worker nodes
       vars:
@@ -82,18 +72,8 @@
       loop_control:
         index_var: index
 
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: destroy_vm
-      when: debug | bool
-
     - name: Destroy template machine
       ansible.builtin.command:
         cmd: qm destroy {{ pve_scos_template_id }}
         removes: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
       register: destroy_vm
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: destroy_vm
-      when: debug | bool

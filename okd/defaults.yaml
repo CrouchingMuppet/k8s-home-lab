@@ -1,7 +1,6 @@
 ---
-debug: true
-
 persistence_folder: /usr/local/share/k8s-home-lab
+ignition_folder: "{{ persistence_folder }}/ignition"
 persistence_cleanup: false
 
 loadbalancer_host_name: okd-haproxy
@@ -10,7 +9,7 @@ loadbalancer_enable_ssh: true
 loadbalancer_api_ports: [6443, 22623]
 loadbalancer_ingress_ports: [80, 443]
 
-okd_version: 4.19.0-okd-scos.ec.17
+openshift_install_url: https://github.com/okd-project/okd/releases/download/4.19.0-okd-scos.17/openshift-install-linux-4.19.0-okd-scos.17.tar.gz
 
 bootstrap_ip: 192.168.1.98
 bootstrap_mac_address: 52:54:00:00:00:98

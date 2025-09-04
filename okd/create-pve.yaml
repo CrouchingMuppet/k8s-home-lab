@@ -40,12 +40,6 @@
           pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add sshd && rc-service sshd start'
           {% endif %}
         creates: /etc/pve/lxc/{{ pve_loadbalancer_id }}.conf
-      register: container_create
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: container_create
-      when: debug | bool
 
   handlers:
     - name: Apply haproxy configuration
@@ -56,87 +50,20 @@
       register: apply_config
       changed_when: '"Starting haproxy" in apply_config.stdout'
 
-    - name: Debug Apply haproxy configuration
-      ansible.builtin.debug:
-        var: apply_config
-      when: debug | bool
-
 ###
 
 - name: Prepare OpenShift environment
   hosts: pve
   gather_facts: false
   vars_files: defaults.yaml
-  vars:
-    ignition_folder: "{{ persistence_folder }}/ignition"
 
   tasks:
     - name: Install prerequisite packages
-      ansible.builtin.apt:
+      ansible.builtin.package:
         name: jq
 
-    - name: Create persistence folder
-      ansible.builtin.file:
-        path: "{{ ignition_folder }}"
-        state: directory
-        mode: "0755"
-
-    - name: Create OKD installer config
-      ansible.builtin.template:
-        src: install-config.yaml.j2
-        dest: "{{ ignition_folder }}//install-config.yaml"
-        mode: "0644"
-
-    - name: Download OpenShift installer
-      ansible.builtin.get_url:
-        url: https://github.com/openshift/okd/releases/download/{{ okd_version }}/openshift-install-linux-{{ okd_version }}.tar.gz
-        dest: "{{ persistence_folder }}/openshift-install.tar.gz"
-        mode: "0644"
-
-    - name: Extract OpenShift tools
-      ansible.builtin.unarchive:
-        src: "{{ persistence_folder }}/openshift-install.tar.gz"
-        dest: "/usr/local/bin"
-        remote_src: true
-        creates: /usr/local/bin/openshift-install
-
-    - name: Find coreos image url
-      ansible.builtin.shell: |
-        set -o pipefail
-        VERSION=scos-$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.release')-qemu.x86_64.qcow2
-        openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.formats."qcow2.gz".disk.location'
-      register: coreos_url
-      changed_when: false
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: coreos_url
-      when: debug | bool
-
-    - name: Download coreos image
-      ansible.builtin.get_url:
-        url: "{{ coreos_url.stdout }}"
-        dest: "{{ persistence_folder }}/scos.qcow2.gz"
-        mode: "0644"
-
-    - name: Extract coreos image
-      ansible.builtin.command:
-        cmd: gzip -dk {{ persistence_folder }}/scos.qcow2.gz
-        creates: "{{ persistence_folder }}/scos.qcow2"
-      register: extract_coreos
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: extract_coreos
-      when: debug | bool
-
-    - name: Create ignition files
-      ansible.builtin.shell:
-        chdir: "{{ ignition_folder }}/"
-        cmd: |
-          openshift-install create manifests
-          openshift-install create ignition-configs
-        creates: bootstrap.ign
+    - name: Import openshift-env.tasks
+      ansible.builtin.import_tasks: openshift-env.tasks.yaml
 
 ###
 
@@ -144,8 +71,6 @@
   hosts: pve
   gather_facts: false
   vars_files: defaults.yaml
-  vars:
-    ignition_folder: "{{ persistence_folder }}/ignition"
   tasks:
     - name: Create template machine
       ansible.builtin.shell:
@@ -160,12 +85,6 @@
           qm resize {{ pve_scos_template_id }} scsi0 {{ pve_scos_template_add_storage }}
           qm template {{ pve_scos_template_id }}
         creates: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
-      register: vm_create
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: vm_create
-      when: debug | bool
 
     - name: Create bootstrap machine
       ansible.builtin.shell:
@@ -179,12 +98,6 @@
             >> /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
           qm start {{ pve_bootstrap_id }}
         creates: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
-      register: vm_create
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: vm_create
-      when: debug | bool
 
     - name: Create control planes
       vars:
@@ -200,15 +113,9 @@
             >> /etc/pve/qemu-server/{{ template_id }}.conf
           qm start {{ template_id }}
         creates: /etc/pve/qemu-server/{{ template_id }}.conf
-      register: vm_create
       loop: "{{ controlplane_ips }}"
       loop_control:
         index_var: index
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: vm_create
-      when: debug | bool
 
     - name: Create worker nodes
       vars:
@@ -224,12 +131,6 @@
             >> /etc/pve/qemu-server/{{ template_id }}.conf
           qm start {{ template_id }}
         creates: /etc/pve/qemu-server/{{ template_id }}.conf
-      register: vm_create
       loop: "{{ worker_ips }}"
       loop_control:
         index_var: index
-
-    - name: Show debug output
-      ansible.builtin.debug:
-        var: vm_create
-      when: debug | bool

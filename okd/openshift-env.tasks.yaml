@@ -1,0 +1,69 @@
+- name: Create ignition folder
+  ansible.builtin.file:
+    path: "{{ ignition_folder }}"
+    state: directory
+    mode: "0755"
+
+- name: Create OKD installer config
+  ansible.builtin.template:
+    src: install-config.yaml.j2
+    dest: "{{ ignition_folder }}/install-config.yaml"
+    mode: "0644"
+
+# Unraid has no libssl which python needs to use get_url module
+- name: Download OpenShift installer # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: "curl -L -o {{ persistence_folder }}/openshift-install.tar.gz {{ openshift_install_url }}"
+    creates: "{{ persistence_folder }}/openshift-install.tar.gz"
+
+- name: Extract OpenShift tools
+  ansible.builtin.unarchive:
+    src: "{{ persistence_folder }}/openshift-install.tar.gz"
+    dest: "/usr/local/bin"
+    remote_src: true
+    creates: /usr/local/bin/openshift-install
+
+- name: Find coreos image url
+  ansible.builtin.shell: |
+    set -o pipefail
+    VERSION=scos-$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.release')-qemu.x86_64.qcow2
+    openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.formats."qcow2.gz".disk.location'
+  register: coreos_url
+  changed_when: false
+
+# Unraid has no libssl which python needs to use get_url module
+- name: Download coreos image # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: "curl -L -o {{ persistence_folder }}/scos.qcow2.gz {{ coreos_url.stdout }}"
+    creates: "{{ persistence_folder }}/scos.qcow2.gz"
+
+# unarchive module does not support gzip content without tar
+- name: Extract coreos image
+  ansible.builtin.command:
+    cmd: gzip -dk {{ persistence_folder }}/scos.qcow2.gz
+    creates: "{{ persistence_folder }}/scos.qcow2"
+
+- name: Create ignition files
+  ansible.builtin.shell:
+    chdir: "{{ ignition_folder }}"
+    cmd: |
+      openshift-install create manifests
+      openshift-install create ignition-configs
+    creates: bootstrap.ign
+
+- name: Apply kube configuration
+  ansible.builtin.fetch:
+    src: "{{ ignition_folder }}/auth/kubeconfig"
+    dest: ~/.kube/config
+    flat: true
+
+- name: Get the admin password
+  ansible.builtin.slurp:
+    src: "{{ ignition_folder }}/auth/kubeadmin-password"
+  register: admin_password
+
+- name: Show the admin password for initial login
+  ansible.builtin.debug:
+    msg:
+      User: kubeadmin
+      Password: "{{ admin_password.content }}"
