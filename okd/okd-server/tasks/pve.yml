@@ -1,0 +1,103 @@
+- name: Template machine
+  block:
+    - name: Create template VM
+      ansible.builtin.shell:
+        chdir: "{{ persistence_folder }}"
+        cmd: |
+          qm create {{ pve_scos_template_id }} --name okd-template \
+            --net0 virtio,bridge=vmbr0 --cpu host
+          qm importdisk {{ pve_scos_template_id }} scos.qcow2 {{ pve_container_storage }}
+          qm set {{ pve_scos_template_id }} --scsihw virtio-scsi-single \
+            --scsi0 {{ pve_container_storage }}:vm-{{ pve_scos_template_id }}-disk-0
+          qm set {{ pve_scos_template_id }} --boot c --bootdisk scsi0
+          qm resize {{ pve_scos_template_id }} scsi0 {{ pve_scos_template_add_storage }}
+          qm template {{ pve_scos_template_id }}
+        creates: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
+  rescue:
+    - name: Destroy template VM
+      ansible.builtin.shell:
+        chdir: "{{ persistence_folder }}"
+        cmd: |
+          qm destroy {{ pve_scos_template_id }}
+        removes: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
+
+- name: Bootstrap machine
+  block:
+    - name: Create bootstrap VM
+      ansible.builtin.shell:
+        cmd: |
+          qm clone {{ pve_scos_template_id }} {{ pve_bootstrap_id }} --name okd-bootstrap
+          qm set {{ pve_bootstrap_id }} --net0 virtio,bridge=vmbr0,macaddr={{ bootstrap_mac_address }}
+          qm set {{ pve_bootstrap_id }} --cores {{ bootstrap_cores }}
+          qm set {{ pve_bootstrap_id }} --memory {{ bootstrap_memory }}
+          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/bootstrap.ign' \
+            >> /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+          qm start {{ pve_bootstrap_id }}
+        creates: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+  rescue:
+    - name: Destroy bootstrap VM
+      ansible.builtin.shell:
+        cmd: |
+          qm stop {{ pve_bootstrap_id }}
+          qm destroy {{ pve_bootstrap_id }}
+        removes: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+
+- name: Control planes
+  vars:
+    template_id: "{{ pve_controlplane_ids_start_from + index }}"
+  block:
+    - name: Create control plane VMs
+      ansible.builtin.shell:
+        cmd: |
+          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-controlplane{{ index }}
+          qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ controlplane_mac_addresses[index] }}
+          qm set {{ template_id }} --cores {{ controlplane_cores }}
+          qm set {{ template_id }} --memory {{ controlplane_memory }}
+          qm set {{ template_id }} --agent {{ pve_controlplane_agent }}
+          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/master.ign' \
+            >> /etc/pve/qemu-server/{{ template_id }}.conf
+          qm start {{ template_id }}
+        creates: /etc/pve/qemu-server/{{ template_id }}.conf
+      loop: "{{ controlplane_ips }}"
+      loop_control:
+        index_var: index
+  rescue:
+    - name: Destroy control plane VMs
+      ansible.builtin.shell:
+        cmd: |
+          qm stop {{ template_id }}
+          qm destroy {{ template_id }}
+        removes: /etc/pve/qemu-server/{{ template_id }}.conf
+      loop: "{{ controlplane_ips }}"
+      loop_control:
+        index_var: index
+
+- name: Worker nodes
+  vars:
+    template_id: "{{ pve_worker_ids_start_from + index }}"
+  block:
+    - name: Create worker VMs
+      ansible.builtin.shell:
+        cmd: |
+          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-worker{{ index }}
+          qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ worker_mac_addresses[index] }}
+          qm set {{ template_id }} --cores {{ worker_cores }}
+          qm set {{ template_id }} --memory {{ worker_memory }}
+          qm set {{ template_id }} --agent {{ pve_worker_agent }}
+          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/worker.ign' \
+            >> /etc/pve/qemu-server/{{ template_id }}.conf
+          qm start {{ template_id }}
+        creates: /etc/pve/qemu-server/{{ template_id }}.conf
+      loop: "{{ worker_ips }}"
+      loop_control:
+        index_var: index
+  rescue:
+    - name: Destroy worker VMs
+      ansible.builtin.shell:
+        cmd: |
+          qm stop {{ template_id }}
+          qm destroy {{ template_id }}
+        removes: /etc/pve/qemu-server/{{ template_id }}.conf
+      loop: "{{ worker_ips }}"
+      loop_control:
+        index_var: index

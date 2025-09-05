@@ -3,7 +3,7 @@
   hosts: pve
   gather_facts: false
   vars_files:
-    - defaults.yaml
+    - defaults.yml
 
   tasks:
     - name: Remove haproxy container
@@ -37,7 +37,7 @@
   hosts: pve
   gather_facts: false
   vars_files:
-    - defaults.yaml
+    - defaults.yml
     - okd-server/defaults/main.yml
 
   tasks:

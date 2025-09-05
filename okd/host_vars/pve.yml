@@ -11,5 +11,9 @@ pve_scos_template_id: 30001
 pve_scos_template_add_storage: +44G
 
 pve_bootstrap_id: 30002
+
 pve_controlplane_ids_start_from: 30100
+pve_controlplane_agent: 0
+
 pve_worker_ids_start_from: 30200
+pve_worker_agent: 0

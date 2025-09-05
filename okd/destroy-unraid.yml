@@ -2,7 +2,7 @@
 - name: Destroy haproxy load balancers
   hosts: unraid
   gather_facts: false
-  vars_files: defaults.yaml
+  vars_files: defaults.yml
 
   tasks:
     - name: Destroy haproxy container

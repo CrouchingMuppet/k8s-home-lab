@@ -1,6 +1,7 @@
+---
 - name: Deploy haproxy load balancers
-  hosts: unraid
+  hosts: pve
   gather_facts: false
-  vars_files: defaults.yaml
+  vars_files: defaults.yml
   roles:
     - okd-server

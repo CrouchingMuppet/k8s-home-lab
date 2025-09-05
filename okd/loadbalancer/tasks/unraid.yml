@@ -1,0 +1,37 @@
+- name: Create haproxy container (Unraid)
+  block:
+    - name: Create appdata folder
+      ansible.builtin.file:
+        path: "{{ unraid_haproxy_appdata }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create haproxy configuration
+      ansible.builtin.template:
+        src: haproxy.cfg.j2
+        dest: "{{ unraid_haproxy_appdata }}/haproxy.cfg"
+        mode: "0644"
+      notify:
+        - Restart haproxy container
+
+    - name: Create compose project in persistence folder
+      ansible.builtin.file:
+        path: "{{ unraid_haproxy_compose_project }}"
+        state: directory
+        mode: "0644"
+
+    - name: Create haproxy compose file
+      ansible.builtin.template:
+        src: haproxy.compose.j2
+        dest: "{{ unraid_haproxy_compose_project }}/compose.yaml"
+        mode: "0644"
+
+    - name: Create haproxy container
+      community.docker.docker_compose_v2:
+        project_src: "{{ unraid_haproxy_compose_project }}"
+        state: present
+  rescue:
+    - name: Destroy container
+      community.docker.docker_compose_v2:
+        project_src: "{{ unraid_haproxy_compose_project }}"
+        state: absent

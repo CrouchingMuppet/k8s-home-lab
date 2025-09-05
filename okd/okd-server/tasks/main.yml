@@ -11,14 +11,14 @@
     mode: "0600"
 
 # Unraid has no libssl which python needs to use get_url module
-- name: Download OpenShift installer # noqa: command-instead-of-module
+- name: OpenShift installer # noqa: command-instead-of-module
   block:
-    - name: Download
+    - name: Download OpenShift installer
       ansible.builtin.command:
         cmd: "curl -L -o {{ persistence_folder }}/openshift-install.tar.gz {{ openshift_install_url }}"
         creates: "{{ persistence_folder }}/openshift-install.tar.gz"
   rescue:
-    - name: Delete
+    - name: Delete OpenShift installer
       ansible.builtin.file:
         path: "{{ persistence_folder }}/openshift-install.tar.gz"
         state: absent
@@ -39,14 +39,14 @@
   changed_when: false
 
 # Unraid has no libssl which python needs to use get_url module
-- name: Download coreos image # noqa: command-instead-of-module
+- name: Core OS image # noqa: command-instead-of-module
   block:
-    - name: Download
+    - name: Download scos image
       ansible.builtin.command:
         cmd: "curl -L -o {{ persistence_folder }}/scos.qcow2.gz {{ coreos_url.stdout }}"
         creates: "{{ persistence_folder }}/scos.qcow2.gz"
   rescue:
-    - name: Delete
+    - name: Delete scos image
       ansible.builtin.file:
         path: "{{ persistence_folder }}/scos.qcow2.gz"
         state: absent
@@ -57,7 +57,7 @@
     cmd: gzip -dk {{ persistence_folder }}/scos.qcow2.gz
     creates: "{{ persistence_folder }}/scos.qcow2"
 
-- name: Create ignition files
+- name: Ignition files
   block:
     - name: Create ignition folder
       ansible.builtin.file:
@@ -91,107 +91,7 @@
     flat: true
     mode: "0600"
 
-- name: Create template machine
-  block:
-    - name: Create
-      ansible.builtin.shell:
-        chdir: "{{ persistence_folder }}"
-        cmd: |
-          qm create {{ pve_scos_template_id }} --name okd-template \
-            --net0 virtio,bridge=vmbr0 --cpu host
-          qm importdisk {{ pve_scos_template_id }} scos.qcow2 {{ pve_container_storage }}
-          qm set {{ pve_scos_template_id }} --scsihw virtio-scsi-single \
-            --scsi0 {{ pve_container_storage }}:vm-{{ pve_scos_template_id }}-disk-0
-          qm set {{ pve_scos_template_id }} --boot c --bootdisk scsi0
-          qm resize {{ pve_scos_template_id }} scsi0 {{ pve_scos_template_add_storage }}
-          qm template {{ pve_scos_template_id }}
-        creates: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
-  rescue:
-    - name: Destroy
-      ansible.builtin.shell:
-        chdir: "{{ persistence_folder }}"
-        cmd: |
-          qm destroy {{ pve_scos_template_id }}
-        removes: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
-
-- name: Create bootstrap machine
-  block:
-    - name: Create
-      ansible.builtin.shell:
-        cmd: |
-          qm clone {{ pve_scos_template_id }} {{ pve_bootstrap_id }} --name okd-bootstrap
-          qm set {{ pve_bootstrap_id }} --net0 virtio,bridge=vmbr0,macaddr={{ bootstrap_mac_address }}
-          qm set {{ pve_bootstrap_id }} --cores 4
-          qm set {{ pve_bootstrap_id }} --memory 16384
-          qm set {{ pve_bootstrap_id }} --agent 1
-          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/bootstrap.ign' \
-            >> /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
-          qm start {{ pve_bootstrap_id }}
-        creates: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
-  rescue:
-    - name: Destroy
-      ansible.builtin.shell:
-        cmd: |
-          qm stop {{ pve_bootstrap_id }}
-          qm destroy {{ pve_bootstrap_id }}
-        removes: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
-
-- name: Create control planes
-  vars:
-    template_id: "{{ pve_controlplane_ids_start_from + index }}"
-  block:
-    - name: Create
-      ansible.builtin.shell:
-        cmd: |
-          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-controlplane{{ index }}
-          qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ controlplane_mac_addresses[index] }}
-          qm set {{ template_id }} --cores 4
-          qm set {{ template_id }} --memory 16384
-          qm set {{ template_id }} --agent 1
-          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/master.ign' \
-            >> /etc/pve/qemu-server/{{ template_id }}.conf
-          qm start {{ template_id }}
-        creates: /etc/pve/qemu-server/{{ template_id }}.conf
-      loop: "{{ controlplane_ips }}"
-      loop_control:
-        index_var: index
-  rescue:
-    - name: Destroy
-      ansible.builtin.shell:
-        cmd: |
-          qm stop {{ template_id }}
-          qm destroy {{ template_id }}
-        removes: /etc/pve/qemu-server/{{ template_id }}.conf
-      loop: "{{ controlplane_ips }}"
-      loop_control:
-        index_var: index
-
-- name: Create worker nodes
-  vars:
-    template_id: "{{ pve_worker_ids_start_from + index }}"
-  block:
-    - name: Create
-      ansible.builtin.shell:
-        cmd: |
-          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-worker{{ index }}
-          qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ worker_mac_addresses[index] }}
-          qm set {{ template_id }} --cores 2
-          qm set {{ template_id }} --memory 8192
-          qm set {{ template_id }} --agent 1
-          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/worker.ign' \
-            >> /etc/pve/qemu-server/{{ template_id }}.conf
-          qm start {{ template_id }}
-        creates: /etc/pve/qemu-server/{{ template_id }}.conf
-      loop: "{{ worker_ips }}"
-      loop_control:
-        index_var: index
-  rescue:
-    - name: Destroy
-      ansible.builtin.shell:
-        cmd: |
-          qm stop {{ template_id }}
-          qm destroy {{ template_id }}
-        removes: /etc/pve/qemu-server/{{ template_id }}.conf
-      loop: "{{ worker_ips }}"
-      loop_control:
-        index_var: index
+- name: Create virtual machines (PVE)
+  ansible.builtin.include_tasks:
+    file: pve.yml
+  when: inventory_hostname in groups['pve']

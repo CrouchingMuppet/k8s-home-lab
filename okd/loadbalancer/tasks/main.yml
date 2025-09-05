@@ -6,80 +6,11 @@
     mode: "0755"
 
 - name: Create haproxy container (Proxmox)
-  block:
-    - name: Create haproxy configuration
-      ansible.builtin.template:
-        src: haproxy.cfg.j2
-        dest: "{{ persistence_folder }}/haproxy.cfg"
-        mode: "0644"
-      notify:
-        - Apply haproxy configuration
-
-    - name: Create
-      ansible.builtin.shell:
-        cmd: |
-          pveam download {{ pve_template_storage }} {{ pve_loadbalancer_template }}
-          pct create {{ pve_loadbalancer_id }} {{ pve_template_storage }}:vztmpl/{{ pve_loadbalancer_template }} \
-              --cores 1 --memory 256 --swap 0 --hostname {{ loadbalancer_host_name }} \
-              --net0 name=eth0,bridge=vmbr0,gw={{ pve_loadbalancer_gateway }},ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
-              --storage {{ pve_container_storage }} --onboot 1
-          pct start {{ pve_loadbalancer_id }}
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk upgrade'
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk add haproxy'
-          pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add haproxy && rc-service haproxy start'
-          {% if loadbalancer_enable_ssh %}
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk add openssh'
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'mkdir -p /root/.ssh'
-          pct push {{ pve_loadbalancer_id }} ~/.ssh/authorized_keys /root/.ssh/authorized_keys
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add sshd && rc-service sshd start'
-          {% endif %}
-        creates: /etc/pve/lxc/{{ pve_loadbalancer_id }}.conf
-  rescue:
-    - name: Destroy container
-      ansible.builtin.shell:
-        cmd: |
-          pct stop {{ pve_loadbalancer_id }}
-          pct destroy {{ pve_loadbalancer_id }}
-        removes: /etc/pve/lxc/{{ pve_loadbalancer_id }}.conf
+  ansible.builtin.include_tasks:
+    file: pve.yml
   when: inventory_hostname in groups['pve']
 
-- name: Create haproxy container (Unraid)
-  block:
-    - name: Create appdata folder
-      ansible.builtin.file:
-        path: "{{ unraid_haproxy_appdata }}"
-        state: directory
-        mode: "0755"
-
-    - name: Create haproxy configuration
-      ansible.builtin.template:
-        src: haproxy.cfg.j2
-        dest: "{{ unraid_haproxy_appdata }}/haproxy.cfg"
-        mode: "0644"
-      notify:
-        - Restart haproxy container
-
-    - name: Create compose project in persistence folder
-      ansible.builtin.file:
-        path: "{{ unraid_haproxy_compose_project }}"
-        state: directory
-        mode: "0644"
-
-    - name: Create haproxy compose file
-      ansible.builtin.template:
-        src: haproxy.compose.j2
-        dest: "{{ unraid_haproxy_compose_project }}/compose.yaml"
-        mode: "0644"
-
-    - name: Create haproxy container
-      community.docker.docker_compose_v2:
-        project_src: "{{ unraid_haproxy_compose_project }}"
-        state: present
-  rescue:
-    - name: Destroy container
-      community.docker.docker_compose_v2:
-        project_src: "{{ unraid_haproxy_compose_project }}"
-        state: absent
-
+- name: Create haproxy container (Proxmox)
+  ansible.builtin.include_tasks:
+    file: unraid.yml
   when: inventory_hostname in groups['unraid']
