@@ -1,0 +1,6 @@
+---
+loadbalancer_host_name: okd-haproxy
+loadbalancer_ip: 192.168.1.99
+loadbalancer_enable_ssh: true
+loadbalancer_api_ports: [6443, 22623]
+loadbalancer_ingress_ports: [80, 443]

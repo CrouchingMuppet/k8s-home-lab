@@ -2,7 +2,8 @@
 - name: Destroy haproxy load balancers
   hosts: pve
   gather_facts: false
-  vars_files: defaults.yaml
+  vars_files:
+    - defaults.yaml
 
   tasks:
     - name: Remove haproxy container
@@ -35,7 +36,9 @@
 - name: Destroy OpenShift machines
   hosts: pve
   gather_facts: false
-  vars_files: defaults.yaml
+  vars_files:
+    - defaults.yaml
+    - okd-server/defaults/main.yml
 
   tasks:
     - name: Destroy bootstrap machine

@@ -1,0 +1,14 @@
+---
+- name: Apply haproxy configuration
+  ansible.builtin.shell: |
+    pct start {{ pve_loadbalancer_id }}
+    pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
+    pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-service haproxy restart'
+  register: apply_config
+  changed_when: '"Starting haproxy" in apply_config.stdout'
+
+- name: Restart haproxy container
+  community.docker.docker_compose_v2:
+    project_src: /tmp
+    files: okd.haproxy.compose.yaml
+    state: restarted
