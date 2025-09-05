@@ -18,28 +18,36 @@
         mode: "0644"
       notify:
         - Apply haproxy configuration
-        - Debug Apply haproxy configuration
 
     - name: Create haproxy container
-      ansible.builtin.shell:
-        cmd: |
-          pveam download {{ pve_template_storage }} {{ pve_loadbalancer_template }}
-          pct create {{ pve_loadbalancer_id }} {{ pve_template_storage }}:vztmpl/{{ pve_loadbalancer_template }} \
-              --cores 1 --memory 256 --swap 0 --hostname {{ loadbalancer_host_name }} \
-              --net0 name=eth0,bridge=vmbr0,gw={{ pve_loadbalancer_gateway }},ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
-              --storage {{ pve_container_storage }} --onboot 1
-          pct start {{ pve_loadbalancer_id }}
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk upgrade'
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk add haproxy'
-          pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add haproxy && rc-service haproxy start'
-          {% if loadbalancer_enable_ssh %}
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk add openssh'
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'mkdir -p /root/.ssh'
-          pct push {{ pve_loadbalancer_id }} ~/.ssh/authorized_keys /root/.ssh/authorized_keys
-          pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add sshd && rc-service sshd start'
-          {% endif %}
-        creates: /etc/pve/lxc/{{ pve_loadbalancer_id }}.conf
+      block:
+        - name: Create
+          ansible.builtin.shell:
+            cmd: |
+              pveam download {{ pve_template_storage }} {{ pve_loadbalancer_template }}
+              pct create {{ pve_loadbalancer_id }} {{ pve_template_storage }}:vztmpl/{{ pve_loadbalancer_template }} \
+                  --cores 1 --memory 256 --swap 0 --hostname {{ loadbalancer_host_name }} \
+                  --net0 name=eth0,bridge=vmbr0,gw={{ pve_loadbalancer_gateway }},ip={{ loadbalancer_ip }}{{ pve_loadbalancer_cidr }},type=veth \
+                  --storage {{ pve_container_storage }} --onboot 1
+              pct start {{ pve_loadbalancer_id }}
+              pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk upgrade'
+              pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk add haproxy'
+              pct push {{ pve_loadbalancer_id }} {{ persistence_folder }}/haproxy.cfg /etc/haproxy/haproxy.cfg
+              pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add haproxy && rc-service haproxy start'
+              {% if loadbalancer_enable_ssh %}
+              pct exec {{ pve_loadbalancer_id }} -- sh -c 'apk add openssh'
+              pct exec {{ pve_loadbalancer_id }} -- sh -c 'mkdir -p /root/.ssh'
+              pct push {{ pve_loadbalancer_id }} ~/.ssh/authorized_keys /root/.ssh/authorized_keys
+              pct exec {{ pve_loadbalancer_id }} -- sh -c 'rc-update add sshd && rc-service sshd start'
+              {% endif %}
+            creates: /etc/pve/lxc/{{ pve_loadbalancer_id }}.conf
+      rescue:
+        - name: Destroy
+          ansible.builtin.shell:
+            cmd: |
+              pct stop {{ pve_loadbalancer_id }}
+              pct destroy {{ pve_loadbalancer_id }}
+            removes: /etc/pve/lxc/{{ pve_loadbalancer_id }}.conf
 
   handlers:
     - name: Apply haproxy configuration
@@ -73,64 +81,106 @@
   vars_files: defaults.yaml
   tasks:
     - name: Create template machine
-      ansible.builtin.shell:
-        chdir: "{{ persistence_folder }}"
-        cmd: |
-          qm create {{ pve_scos_template_id }} --name okd-template \
-            --net0 virtio,bridge=vmbr0 --cpu host
-          qm importdisk {{ pve_scos_template_id }} scos.qcow2 {{ pve_container_storage }}
-          qm set {{ pve_scos_template_id }} --scsihw virtio-scsi-single \
-            --scsi0 {{ pve_container_storage }}:vm-{{ pve_scos_template_id }}-disk-0
-          qm set {{ pve_scos_template_id }} --boot c --bootdisk scsi0
-          qm resize {{ pve_scos_template_id }} scsi0 {{ pve_scos_template_add_storage }}
-          qm template {{ pve_scos_template_id }}
-        creates: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
+      block:
+        - name: Create
+          ansible.builtin.shell:
+            chdir: "{{ persistence_folder }}"
+            cmd: |
+              qm create {{ pve_scos_template_id }} --name okd-template \
+                --net0 virtio,bridge=vmbr0 --cpu host
+              qm importdisk {{ pve_scos_template_id }} scos.qcow2 {{ pve_container_storage }}
+              qm set {{ pve_scos_template_id }} --scsihw virtio-scsi-single \
+                --scsi0 {{ pve_container_storage }}:vm-{{ pve_scos_template_id }}-disk-0
+              qm set {{ pve_scos_template_id }} --boot c --bootdisk scsi0
+              qm resize {{ pve_scos_template_id }} scsi0 {{ pve_scos_template_add_storage }}
+              qm template {{ pve_scos_template_id }}
+            creates: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
+      rescue:
+        - name: Destroy
+          ansible.builtin.shell:
+            chdir: "{{ persistence_folder }}"
+            cmd: |
+              qm destroy {{ pve_scos_template_id }}
+            removes: /etc/pve/qemu-server/{{ pve_scos_template_id }}.conf
 
     - name: Create bootstrap machine
-      ansible.builtin.shell:
-        cmd: |
-          qm clone {{ pve_scos_template_id }} {{ pve_bootstrap_id }} --name okd-bootstrap
-          qm set {{ pve_bootstrap_id }} --net0 virtio,bridge=vmbr0,macaddr={{ bootstrap_mac_address }}
-          qm set {{ pve_bootstrap_id }} --cores 4
-          qm set {{ pve_bootstrap_id }} --memory 16384
-          qm set {{ pve_bootstrap_id }} --agent 1
-          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/bootstrap.ign' \
-            >> /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
-          qm start {{ pve_bootstrap_id }}
-        creates: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+      block:
+        - name: Create
+          ansible.builtin.shell:
+            cmd: |
+              qm clone {{ pve_scos_template_id }} {{ pve_bootstrap_id }} --name okd-bootstrap
+              qm set {{ pve_bootstrap_id }} --net0 virtio,bridge=vmbr0,macaddr={{ bootstrap_mac_address }}
+              qm set {{ pve_bootstrap_id }} --cores 4
+              qm set {{ pve_bootstrap_id }} --memory 16384
+              qm set {{ pve_bootstrap_id }} --agent 1
+              echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/bootstrap.ign' \
+                >> /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+              qm start {{ pve_bootstrap_id }}
+            creates: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
+      rescue:
+        - name: Destroy
+          ansible.builtin.shell:
+            cmd: |
+              qm stop {{ pve_bootstrap_id }}
+              qm destroy {{ pve_bootstrap_id }}
+            removes: /etc/pve/qemu-server/{{ pve_bootstrap_id }}.conf
 
     - name: Create control planes
       vars:
         template_id: "{{ pve_controlplane_ids_start_from + index }}"
-      ansible.builtin.shell:
-        cmd: |
-          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-controlplane{{ index }}
-          qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ controlplane_mac_addresses[index] }}
-          qm set {{ template_id }} --cores 4
-          qm set {{ template_id }} --memory 16384
-          qm set {{ template_id }} --agent 1
-          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/master.ign' \
-            >> /etc/pve/qemu-server/{{ template_id }}.conf
-          qm start {{ template_id }}
-        creates: /etc/pve/qemu-server/{{ template_id }}.conf
-      loop: "{{ controlplane_ips }}"
-      loop_control:
-        index_var: index
+      block:
+        - name: Create
+          ansible.builtin.shell:
+            cmd: |
+              qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-controlplane{{ index }}
+              qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ controlplane_mac_addresses[index] }}
+              qm set {{ template_id }} --cores 4
+              qm set {{ template_id }} --memory 16384
+              qm set {{ template_id }} --agent 1
+              echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/master.ign' \
+                >> /etc/pve/qemu-server/{{ template_id }}.conf
+              qm start {{ template_id }}
+            creates: /etc/pve/qemu-server/{{ template_id }}.conf
+          loop: "{{ controlplane_ips }}"
+          loop_control:
+            index_var: index
+      rescue:
+        - name: Destroy
+          ansible.builtin.shell:
+            cmd: |
+              qm stop {{ template_id }}
+              qm destroy {{ template_id }}
+            removes: /etc/pve/qemu-server/{{ template_id }}.conf
+          loop: "{{ controlplane_ips }}"
+          loop_control:
+            index_var: index
 
     - name: Create worker nodes
       vars:
         template_id: "{{ pve_worker_ids_start_from + index }}"
-      ansible.builtin.shell:
-        cmd: |
-          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-worker{{ index }}
-          qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ worker_mac_addresses[index] }}
-          qm set {{ template_id }} --cores 2
-          qm set {{ template_id }} --memory 8192
-          qm set {{ template_id }} --agent 1
-          echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/worker.ign' \
-            >> /etc/pve/qemu-server/{{ template_id }}.conf
-          qm start {{ template_id }}
-        creates: /etc/pve/qemu-server/{{ template_id }}.conf
-      loop: "{{ worker_ips }}"
-      loop_control:
-        index_var: index
+      block:
+        - name: Create
+          ansible.builtin.shell:
+            cmd: |
+              qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-worker{{ index }}
+              qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ worker_mac_addresses[index] }}
+              qm set {{ template_id }} --cores 2
+              qm set {{ template_id }} --memory 8192
+              qm set {{ template_id }} --agent 1
+              echo 'args: -fw_cfg name=opt/com.coreos/config,file={{ ignition_folder }}/worker.ign' \
+                >> /etc/pve/qemu-server/{{ template_id }}.conf
+              qm start {{ template_id }}
+            creates: /etc/pve/qemu-server/{{ template_id }}.conf
+          loop: "{{ worker_ips }}"
+          loop_control:
+            index_var: index
+      rescue:
+        - name: Destroy
+          ansible.builtin.shell:
+            cmd: |
+              qm stop {{ template_id }}
+              qm destroy {{ template_id }}
+            removes: /etc/pve/qemu-server/{{ template_id }}.conf
+          loop: "{{ worker_ips }}"
+          loop_control:
+            index_var: index

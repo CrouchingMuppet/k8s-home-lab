@@ -1,20 +1,21 @@
-- name: Create ignition folder
-  ansible.builtin.file:
-    path: "{{ ignition_folder }}"
-    state: directory
-    mode: "0755"
-
 - name: Create OKD installer config
   ansible.builtin.template:
     src: install-config.yaml.j2
-    dest: "{{ ignition_folder }}/install-config.yaml"
-    mode: "0644"
+    dest: "{{ persistence_folder }}/install-config.yaml"
+    mode: "0600"
 
 # Unraid has no libssl which python needs to use get_url module
 - name: Download OpenShift installer # noqa: command-instead-of-module
-  ansible.builtin.command:
-    cmd: "curl -L -o {{ persistence_folder }}/openshift-install.tar.gz {{ openshift_install_url }}"
-    creates: "{{ persistence_folder }}/openshift-install.tar.gz"
+  block:
+    - name: Download
+      ansible.builtin.command:
+        cmd: "curl -L -o {{ persistence_folder }}/openshift-install.tar.gz {{ openshift_install_url }}"
+        creates: "{{ persistence_folder }}/openshift-install.tar.gz"
+  rescue:
+    - name: Delete
+      ansible.builtin.file:
+        path: "{{ persistence_folder }}/openshift-install.tar.gz"
+        state: absent
 
 - name: Extract OpenShift tools
   ansible.builtin.unarchive:
@@ -33,9 +34,16 @@
 
 # Unraid has no libssl which python needs to use get_url module
 - name: Download coreos image # noqa: command-instead-of-module
-  ansible.builtin.command:
-    cmd: "curl -L -o {{ persistence_folder }}/scos.qcow2.gz {{ coreos_url.stdout }}"
-    creates: "{{ persistence_folder }}/scos.qcow2.gz"
+  block:
+    - name: Download
+      ansible.builtin.command:
+        cmd: "curl -L -o {{ persistence_folder }}/scos.qcow2.gz {{ coreos_url.stdout }}"
+        creates: "{{ persistence_folder }}/scos.qcow2.gz"
+  rescue:
+    - name: Delete
+      ansible.builtin.file:
+        path: "{{ persistence_folder }}/scos.qcow2.gz"
+        state: absent
 
 # unarchive module does not support gzip content without tar
 - name: Extract coreos image
@@ -44,12 +52,25 @@
     creates: "{{ persistence_folder }}/scos.qcow2"
 
 - name: Create ignition files
-  ansible.builtin.shell:
-    chdir: "{{ ignition_folder }}"
-    cmd: |
-      openshift-install create manifests
-      openshift-install create ignition-configs
-    creates: bootstrap.ign
+  block:
+    - name: Create ignition folder
+      ansible.builtin.file:
+        path: "{{ ignition_folder }}"
+        state: directory
+        mode: "0755"
+    - name: Create ignition configs
+      ansible.builtin.shell:
+        chdir: "{{ ignition_folder }}"
+        cmd: |
+          cp ../install-config.yaml .
+          openshift-install create manifests
+          openshift-install create ignition-configs
+        creates: bootstrap.ign
+  rescue:
+    - name: Delete ignition folder
+      ansible.builtin.file:
+        path: "{{ ignition_folder }}"
+        state: absent
 
 - name: Apply kube configuration
   ansible.builtin.fetch:
@@ -57,13 +78,9 @@
     dest: ~/.kube/config
     flat: true
 
-- name: Get the admin password
-  ansible.builtin.slurp:
+- name: Fetch the admin password
+  ansible.builtin.fetch:
     src: "{{ ignition_folder }}/auth/kubeadmin-password"
-  register: admin_password
-
-- name: Show the admin password for initial login
-  ansible.builtin.debug:
-    msg:
-      User: kubeadmin
-      Password: "{{ admin_password.content }}"
+    dest: kubeadmin-password.txt
+    flat: true
+    mode: "0600"
