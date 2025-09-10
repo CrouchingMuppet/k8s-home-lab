@@ -1,0 +1,43 @@
+<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+  <name>{{ vm_name }}</name>
+  <metadata>
+    <vmtemplate xmlns="http://unraid" name="Linux" icon="linux.png" os="linux"/>
+  </metadata>
+  <memory unit='MiB'>{{ vm_mem }}</memory>
+  <vcpu placement='static'>{{ vm_cores }}</vcpu>
+  <os>
+    <loader readonly="yes" type="pflash">/usr/share/qemu/ovmf-x64/OVMF_CODE-pure-efi.fd</loader>
+    <nvram>{{ vm_files_path }}/OVMF_VARS-pure-efi.fd</nvram>
+    <type arch='x86_64' machine='q35'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+  </features>  
+  <cpu mode='host-passthrough'/>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='{{ vm_files_path }}/scos.qcow2'/>
+      <target dev='sda' bus='virtio'/>
+    </disk>
+    <interface type='bridge'>
+      <source bridge='br0'/>
+      <model type='virtio'/>
+      <mac address='{{ vm_mac_addr }}' />
+    </interface>
+    <controller type='scsi' model='virtio-scsi'/>
+    <graphics type='vnc' port='-1' autoport='yes' websocket='-1' listen='0.0.0.0' sharePolicy='ignore'>
+      <listen type='address' address='0.0.0.0'/>
+    </graphics>
+    <video>
+      <model type='qxl' ram='65536' vram='16384' vgamem='16384' heads='1' primary='yes'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x1e' function='0x0'/>
+    </video>
+  </devices>
+  <qemu:commandline>
+    <qemu:arg value='-fw_cfg'/>
+    <qemu:arg value='name=opt/com.coreos/config,file={{ vm_ignition_file }}'/>
+  </qemu:commandline>
+</domain>

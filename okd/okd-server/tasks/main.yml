@@ -11,9 +11,9 @@
     mode: "0600"
 
 # Unraid has no libssl which python needs to use get_url module
-- name: OpenShift installer # noqa: command-instead-of-module
+- name: OpenShift installer
   block:
-    - name: Download OpenShift installer
+    - name: Download OpenShift installer # noqa: command-instead-of-module
       ansible.builtin.command:
         cmd: "curl -L -o {{ persistence_folder }}/openshift-install.tar.gz {{ openshift_install_url }}"
         creates: "{{ persistence_folder }}/openshift-install.tar.gz"
@@ -39,9 +39,9 @@
   changed_when: false
 
 # Unraid has no libssl which python needs to use get_url module
-- name: Core OS image # noqa: command-instead-of-module
+- name: Core OS image
   block:
-    - name: Download scos image
+    - name: Download scos image # noqa: command-instead-of-module
       ansible.builtin.command:
         cmd: "curl -L -o {{ persistence_folder }}/scos.qcow2.gz {{ coreos_url.stdout }}"
         creates: "{{ persistence_folder }}/scos.qcow2.gz"
@@ -95,3 +95,8 @@
   ansible.builtin.include_tasks:
     file: pve.yml
   when: inventory_hostname in groups['pve']
+
+- name: Create virtual machines (Unraid)
+  ansible.builtin.include_tasks:
+    file: unraid.yml
+  when: inventory_hostname in groups['unraid']

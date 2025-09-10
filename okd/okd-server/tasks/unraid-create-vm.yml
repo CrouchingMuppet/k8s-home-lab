@@ -1,0 +1,40 @@
+- name: Create VMs
+  block:
+    - name: Create VM disk path
+      ansible.builtin.file:
+        path: "{{ vm_files_path }}"
+        state: directory
+        mode: "0755"
+    - name: Create VM disk
+      ansible.builtin.command:
+        cmd: >
+          qemu-img create -f qcow2 -F qcow2
+            -b {{ persistence_folder }}/scos.qcow2
+            {{ vm_files_path }}/scos.qcow2
+            60G
+        creates: "{{ vm_files_path }}/scos.qcow2"
+    - name: Create VM template
+      ansible.builtin.template:
+        src: okd-vm.xml.j2
+        dest: "{{ vm_files_path }}/okd-vm.xml"
+        mode: "0644"
+    - name: Create VM NVRAM
+      ansible.builtin.copy:
+        src: /usr/share/qemu/ovmf-x64/OVMF_VARS-pure-efi.fd
+        dest: "{{ vm_files_path }}/OVMF_VARS-pure-efi.fd"
+        remote_src: true
+        mode: "0644"
+    - name: Create VM
+      ansible.builtin.command:
+        cmd: virsh define {{ vm_files_path }}/okd-vm.xml
+      register: output
+      changed_when: '"defined from" in output.stdout'
+    - name: Start VM
+      ansible.builtin.command:
+        cmd: virsh start {{ vm_name }}
+      register: output
+      changed_when: '"started from" in output.stdout'
+  rescue:
+    - name: Destroy VM
+      ansible.builtin.include_tasks:
+        file: unraid-destroy-vm.yml

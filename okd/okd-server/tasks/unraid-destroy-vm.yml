@@ -1,0 +1,17 @@
+- name: Destroy VM
+  ansible.builtin.command:
+    cmd: virsh destroy {{ vm_name }}
+  changed_when: false
+  failed_when: false
+
+- name: Undefine VM
+  ansible.builtin.command:
+    cmd: virsh undefine --nvram {{ vm_name }}
+  register: output
+  changed_when: false
+  failed_when: false
+
+- name: Remove VM files path
+  ansible.builtin.file:
+    path: "{{ vm_files_path }}"
+    state: absent

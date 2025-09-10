@@ -1,13 +1,16 @@
 ---
 ignition_folder: "{{ persistence_folder }}/ignition"
 
-openshift_install_url: https://github.com/okd-project/okd/releases/download/4.19.0-okd-scos.17/openshift-install-linux-4.19.0-okd-scos.17.tar.gz
+openshift_release: 4.20.0-okd-scos.ec.9
+openshift_install_url: https://github.com/okd-project/okd/releases/download/{{ openshift_release }}/openshift-install-linux-{{ openshift_release }}.tar.gz
 
+bootstrap_name: okd-bootstrap
 bootstrap_ip: 192.168.1.98
 bootstrap_mac_address: 52:54:00:00:00:98
 bootstrap_cores: 4
 bootstrap_memory: 16384
 
+controlplane_name: okd-controlplane
 controlplane_ips:
   - 192.168.1.93
   - 192.168.1.94
@@ -16,9 +19,10 @@ controlplane_mac_addresses:
   - 52:54:00:00:00:93
   - 52:54:00:00:00:94
   - 52:54:00:00:00:95
-controlplane_cores: 6
-controlplane_memory: 20480
+controlplane_cores: 4
+controlplane_memory: 16384
 
+worker_name: okd-worker
 worker_ips:
   []
   # - 192.168.1.96

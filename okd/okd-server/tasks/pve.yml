@@ -26,7 +26,7 @@
     - name: Create bootstrap VM
       ansible.builtin.shell:
         cmd: |
-          qm clone {{ pve_scos_template_id }} {{ pve_bootstrap_id }} --name okd-bootstrap
+          qm clone {{ pve_scos_template_id }} {{ pve_bootstrap_id }} --name {{ bootstrap_name }}
           qm set {{ pve_bootstrap_id }} --net0 virtio,bridge=vmbr0,macaddr={{ bootstrap_mac_address }}
           qm set {{ pve_bootstrap_id }} --cores {{ bootstrap_cores }}
           qm set {{ pve_bootstrap_id }} --memory {{ bootstrap_memory }}
@@ -49,7 +49,7 @@
     - name: Create control plane VMs
       ansible.builtin.shell:
         cmd: |
-          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-controlplane{{ index }}
+          qm clone {{ pve_scos_template_id }} {{ template_id }} --name {{ controlplane_name }}{{ index }}
           qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ controlplane_mac_addresses[index] }}
           qm set {{ template_id }} --cores {{ controlplane_cores }}
           qm set {{ template_id }} --memory {{ controlplane_memory }}
@@ -79,7 +79,7 @@
     - name: Create worker VMs
       ansible.builtin.shell:
         cmd: |
-          qm clone {{ pve_scos_template_id }} {{ template_id }} --name okd-worker{{ index }}
+          qm clone {{ pve_scos_template_id }} {{ template_id }} --name {{ worker_name }}{{ index }}
           qm set {{ template_id }} --net0 virtio,bridge=vmbr0,macaddr={{ worker_mac_addresses[index] }}
           qm set {{ template_id }} --cores {{ worker_cores }}
           qm set {{ template_id }} --memory {{ worker_memory }}

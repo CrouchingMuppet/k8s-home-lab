@@ -1,0 +1,38 @@
+- name: Bootstrap machine
+  vars:
+    vm_files_path: "{{ unraid_vms_path }}/{{ bootstrap_name }}"
+    vm_cores: "{{ bootstrap_cores }}"
+    vm_ignition_file: "{{ ignition_folder }}/bootstrap.ign"
+    vm_mac_addr: "{{ bootstrap_mac_address }}"
+    vm_mem: "{{ bootstrap_memory }}"
+    vm_name: "{{ bootstrap_name }}"
+  ansible.builtin.include_tasks:
+    file: unraid-create-vm.yml
+
+- name: Control plane machines
+  vars:
+    vm_files_path: "{{ unraid_vms_path }}/{{ controlplane_name }}{{ index }}"
+    vm_cores: "{{ controlplane_cores }}"
+    vm_ignition_file: "{{ ignition_folder }}/master.ign"
+    vm_mac_addr: "{{ controlplane_mac_addresses[index] }}"
+    vm_mem: "{{ controlplane_memory }}"
+    vm_name: "{{ controlplane_name }}{{ index }}"
+  ansible.builtin.include_tasks:
+    file: unraid-create-vm.yml
+  loop: "{{ controlplane_ips }}"
+  loop_control:
+    index_var: index
+
+- name: Worker machines
+  vars:
+    vm_cores: "{{ worker_cores }}"
+    vm_files_path: "{{ unraid_vms_path }}/{{ worker_name }}{{ index }}"
+    vm_ignition_file: "{{ ignition_folder }}/worker.ign"
+    vm_mac_addr: "{{ worker_mac_addresses[index] }}"
+    vm_mem: "{{ worker_memory }}"
+    vm_name: "{{ worker_name }}{{ index }}"
+  ansible.builtin.include_tasks:
+    file: unraid-create-vm.yml
+  loop: "{{ worker_ips }}"
+  loop_control:
+    index_var: index
