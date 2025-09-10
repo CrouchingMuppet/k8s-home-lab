@@ -1,3 +1,0 @@
----
-persistence_folder: /usr/local/share/k8s-home-lab
-persistence_cleanup: false

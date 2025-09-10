@@ -1,6 +1,0 @@
----
-unraid:
-  hosts:
-    zero:
-      ansible_host: zero.localdomain
-      ansible_user: root
