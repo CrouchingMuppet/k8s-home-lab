@@ -39,6 +39,7 @@ systemctl enable --now kubelet.service
 ```
 
 ### Alma Linux
+
 ```sh
 KUBERNETES_VERSION=v1.33
 CRIO_VERSION=v1.33
@@ -197,6 +198,6 @@ apt install -y open-iscsi nfs-common
 dnf install -y iscsi-initiator-utils nfs-utils
 ```
 
-### Bootstrapping with ArgoCD for bootstrapping and app deployment
+### Bootstrapping with ArgoCD for app deployment
 
 From `bootstrap` folder, run `install.sh` and get ready to sit back and drink 🍻
