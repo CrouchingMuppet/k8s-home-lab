@@ -1,0 +1,20 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-cluster
+spec:
+  project: apps
+  destination:
+    name: "in-cluster"
+    namespace: core-services
+  source:
+    repoURL: https://github.com/CrouchingMuppet/k8s-home-lab.git
+    path: argocd/core-services/postgres-cluster
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
