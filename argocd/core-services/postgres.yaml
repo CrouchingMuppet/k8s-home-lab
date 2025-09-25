@@ -1,0 +1,20 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-operator
+spec:
+  project: core-services
+  destination:
+    name: "in-cluster"
+    namespace: postgres-operator
+  source:
+    repoURL: oci://registry.developers.crunchydata.com/crunchydata/pgo
+    targetRevision: 5.3.0
+    chart: pgo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
