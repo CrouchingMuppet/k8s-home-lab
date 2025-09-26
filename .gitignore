@@ -1,4 +1,5 @@
 .ansible
 .DS_Store
+.env
 okd/kubeadmin-password.txt
 okd/pull-secret.txt
