@@ -7,7 +7,7 @@ spec:
   project: apps
   destination:
     name: "in-cluster"
-    namespace: core-services
+    namespace: postgres-cluster
   source:
     repoURL: https://github.com/CrouchingMuppet/k8s-home-lab.git
     path: argocd/core-services/postgres-cluster
