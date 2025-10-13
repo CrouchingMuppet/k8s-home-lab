@@ -1,0 +1,20 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spinnaker
+spec:
+  project: apps
+  destination:
+    name: "in-cluster"
+    namespace: spinnaker
+  source:
+    repoURL: https://github.com/CrouchingMuppet/k8s-home-lab.git
+    path: apps/spinnaker
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
