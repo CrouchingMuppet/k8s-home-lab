@@ -6,5 +6,5 @@ namespace: spinnaker
 
 resources:
   - https://operatorhub.io/install/spinnaker-operator.yaml
-  - service.yaml
+  - install.yaml
   - ingress.yaml
