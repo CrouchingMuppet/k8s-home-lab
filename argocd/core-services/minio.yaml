@@ -1,0 +1,23 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+spec:
+  project: core-services
+  destination:
+    name: "in-cluster"
+    namespace: minio
+  source:
+    repoURL: https://github.com/minio/operator
+    path: ./
+    kustomize:
+      replicas:
+        - name: minio-operator
+          count: 1
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
