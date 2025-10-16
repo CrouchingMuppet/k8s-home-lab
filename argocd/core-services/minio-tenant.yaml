@@ -1,0 +1,30 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio-tenant
+spec:
+  project: core-services
+  destination:
+    name: "in-cluster"
+    namespace: minio
+  source:
+    repoURL: https://github.com/minio/operator
+    path: examples/kustomization/tenant-tiny
+    kustomize:
+      namespace: minio
+      patches:
+        - target:
+            kind: Tenant
+            name: myminio
+          patch: |-
+            - op: add
+              path: /spec/features
+              value:
+                bucketDNS: true
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
