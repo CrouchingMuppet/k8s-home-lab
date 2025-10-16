@@ -16,6 +16,16 @@ spec:
       parameters:
         - name: preUpgradeChecker.jobEnabled
           value: "false"
+        - name: csi.attacherReplicaCount
+          value: "1"
+        - name: csi.provisionerReplicaCount
+          value: "1"
+        - name: csi.resizerReplicaCount
+          value: "1"
+        - name: csi.snapshotterReplicaCount
+          value: "1"
+        - name: ui.replicaCount
+          value: "1"
   syncPolicy:
     automated:
       prune: true
